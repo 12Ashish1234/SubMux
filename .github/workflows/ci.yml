@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test-and-lint:
@@ -36,7 +37,8 @@ jobs:
 
       - name: Install FFmpeg (for test suite)
         run: |
-          brew install ffmpeg
+          brew untap aws/tap 2>/dev/null || true
+          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ENV_HINTS=1 brew install ffmpeg
 
       - name: Install Node dependencies
         run: npm ci
