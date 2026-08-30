@@ -1,10 +1,51 @@
+use std::fs;
+use std::path::Path;
 use std::process::Command;
 use submux_lib::burner::{build_burn_command, BurnRequest};
-use submux_lib::ffmpeg::{check_environment, probe_video};
+use submux_lib::ffmpeg::{check_environment, find_binary, probe_video};
 use submux_lib::muxer::{build_mux_command, MuxRequest, SubtitleTrackConfig};
+
+fn ensure_test_media() {
+    let video_path = "/tmp/submux_test_video.mp4";
+    let srt_en = "/tmp/submux_test_en.srt";
+    let srt_hi = "/tmp/submux_test_hi.srt";
+
+    let ffmpeg_bin = find_binary("ffmpeg")
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "ffmpeg".to_string());
+
+    // 1. Generate 2-second test video if not present
+    if !Path::new(video_path).exists() {
+        let _ = Command::new(&ffmpeg_bin)
+            .args(&[
+                "-y",
+                "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=30",
+                "-f", "lavfi", "-i", "sine=frequency=1000:duration=2",
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "-pix_fmt", "yuv420p",
+                video_path,
+            ])
+            .status();
+    }
+
+    // 2. Generate English SRT subtitle file if not present
+    if !Path::new(srt_en).exists() {
+        let content_en = "1\n00:00:00,100 --> 00:00:01,800\nEnglish Test Subtitle\n\n";
+        let _ = fs::write(srt_en, content_en);
+    }
+
+    // 3. Generate Hindi SRT subtitle file if not present
+    if !Path::new(srt_hi).exists() {
+        let content_hi = "1\n00:00:00,100 --> 00:00:01,800\nHindi Test Subtitle\n\n";
+        let _ = fs::write(srt_hi, content_hi);
+    }
+}
 
 #[test]
 fn test_ffmpeg_environment_and_mux_flow() {
+    ensure_test_media();
+
     let env = check_environment();
     assert!(env.ffmpeg_available, "ffmpeg should be available");
     assert!(env.ffprobe_available, "ffprobe should be available");
@@ -78,12 +119,18 @@ fn test_ffmpeg_environment_and_mux_flow() {
 
 #[test]
 fn test_subtitle_burn_flow() {
+    ensure_test_media();
+
+    let ffmpeg_bin = find_binary("ffmpeg")
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "ffmpeg".to_string());
+
     let burn_req = BurnRequest {
         video_path: "/tmp/submux_test_video.mp4".to_string(),
         subtitle_path: "/tmp/submux_test_en.srt".to_string(),
         output_path: "/tmp/submux_burned_test.mp4".to_string(),
         output_format: Some("mp4".to_string()),
-        encoder: Some("h264_videotoolbox".to_string()),
+        encoder: Some("libx264".to_string()),
         font_size: Some(24),
         font_color: Some("yellow".to_string()),
         has_box: Some(false),
@@ -91,16 +138,18 @@ fn test_subtitle_burn_flow() {
     };
 
     let burn_args = build_burn_command(&burn_req);
-    let burn_status = Command::new("ffmpeg")
+    let burn_status = Command::new(&ffmpeg_bin)
         .args(&burn_args)
         .status()
         .expect("Failed to execute burn command");
     assert!(burn_status.success(), "Burn ffmpeg failed");
-    assert!(std::path::Path::new("/tmp/submux_burned_test.mp4").exists());
+    assert!(Path::new("/tmp/submux_burned_test.mp4").exists());
 }
 
 #[test]
 fn test_mkv_mux_flow() {
+    ensure_test_media();
+
     let env = check_environment();
     let req = MuxRequest {
         video_path: "/tmp/submux_test_video.mp4".to_string(),
