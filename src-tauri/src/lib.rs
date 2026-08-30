@@ -1,8 +1,12 @@
+pub mod batch;
 pub mod burner;
+pub mod extractor;
 pub mod ffmpeg;
 pub mod muxer;
 
+use batch::{match_videos_and_subtitles, BatchItem};
 use burner::{build_burn_command, BurnRequest};
+use extractor::extract_subtitle_track;
 use ffmpeg::{
     cancel_mux_process, check_environment, probe_video, run_burn, run_mux, ActiveMuxState,
     EnvironmentStatus, VideoInfo,
@@ -45,6 +49,24 @@ fn burn_subtitles(app: AppHandle, request: BurnRequest) -> Result<MuxResult, Str
 }
 
 #[tauri::command]
+fn extract_subtitle(
+    video_path: String,
+    stream_index: usize,
+    output_path: String,
+) -> Result<String, String> {
+    extract_subtitle_track(&video_path, stream_index, &output_path)
+}
+
+#[tauri::command]
+fn match_batch_files(
+    video_paths: Vec<String>,
+    subtitle_paths: Vec<String>,
+    default_format: String,
+) -> Vec<BatchItem> {
+    match_videos_and_subtitles(&video_paths, &subtitle_paths, &default_format)
+}
+
+#[tauri::command]
 fn cancel_mux(state: State<ActiveMuxState>) {
     cancel_mux_process(&state);
 }
@@ -67,6 +89,8 @@ pub fn run() {
             preview_burn_command,
             mux_subtitles,
             burn_subtitles,
+            extract_subtitle,
+            match_batch_files,
             cancel_mux,
             start_window_drag
         ])

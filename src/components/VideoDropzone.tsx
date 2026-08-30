@@ -1,6 +1,20 @@
 import React, { useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
-import { Film, UploadCloud, X, Clock, HardDrive, FileVideo, Music, Subtitles } from 'lucide-react';
+import { open, save } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
+import {
+  Film,
+  UploadCloud,
+  X,
+  Clock,
+  HardDrive,
+  FileVideo,
+  Music,
+  Subtitles,
+  Download,
+  Play,
+  Check,
+  Loader2,
+} from 'lucide-react';
 import { VideoInfo } from '../types';
 import { formatBytes, formatDuration } from '../utils/formatters';
 
@@ -9,6 +23,7 @@ interface VideoDropzoneProps {
   isProbing: boolean;
   onSelectVideo: (filePath: string) => void;
   onClearVideo: () => void;
+  onOpenPreview?: () => void;
 }
 
 export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
@@ -16,8 +31,11 @@ export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
   isProbing,
   onSelectVideo,
   onClearVideo,
+  onOpenPreview,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [extractingIndex, setExtractingIndex] = useState<number | null>(null);
+  const [extractedMap, setExtractedMap] = useState<{ [key: number]: boolean }>({});
 
   const handlePickFile = async () => {
     try {
@@ -52,21 +70,62 @@ export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
     }
   };
 
+  const handleExtractSubtitle = async (streamIndex: number, langTitle: string) => {
+    if (!videoInfo) return;
+
+    try {
+      const defaultFilename = `${videoInfo.filename.replace(/\.[^/.]+$/, '')}_${langTitle || 'sub'}.srt`;
+      const savePath = await save({
+        title: 'Extract Subtitle to File',
+        defaultPath: defaultFilename,
+        filters: [
+          {
+            name: 'SubRip Subtitle (*.srt)',
+            extensions: ['srt'],
+          },
+        ],
+      });
+
+      if (savePath && typeof savePath === 'string') {
+        setExtractingIndex(streamIndex);
+        await invoke('extract_subtitle', {
+          videoPath: videoInfo.path,
+          streamIndex,
+          outputPath: savePath,
+        });
+
+        setExtractedMap((prev) => ({ ...prev, [streamIndex]: true }));
+        setTimeout(() => {
+          setExtractedMap((prev) => ({ ...prev, [streamIndex]: false }));
+        }, 3000);
+      }
+    } catch (err) {
+      console.error('Failed to extract subtitle stream:', err);
+      alert('Failed to extract subtitle track: ' + String(err));
+    } finally {
+      setExtractingIndex(null);
+    }
+  };
+
   if (isProbing) {
     return (
       <div className="bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 flex flex-col items-center justify-center space-y-3 animate-pulse shadow-sm">
         <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-500 dark:text-blue-400 flex items-center justify-center">
           <Film className="w-5 h-5 animate-spin" />
         </div>
-        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Analyzing video streams & duration...</p>
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Analyzing video streams & duration...
+        </p>
       </div>
     );
   }
 
   if (videoInfo) {
     const videoStream = videoInfo.streams.find((s) => s.codec_type === 'video');
+    const existingSubs = videoInfo.streams.filter((s) => s.codec_type === 'subtitle');
+
     return (
-      <div className="bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl p-5 relative group transition-all shadow-sm">
+      <div className="bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl p-5 space-y-4 shadow-sm transition-all">
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-3.5 flex-1 min-w-0 pr-4">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 dark:from-blue-600/30 dark:to-indigo-600/20 border border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
@@ -75,14 +134,20 @@ export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center space-x-2">
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm truncate" title={videoInfo.filename}>
+                <span
+                  className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm truncate"
+                  title={videoInfo.filename}
+                >
                   {videoInfo.filename}
                 </span>
                 <span className="uppercase text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 dark:border-blue-500/30">
                   {videoInfo.format_name.split(',')[0]}
                 </span>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate mt-0.5" title={videoInfo.path}>
+              <p
+                className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate mt-0.5"
+                title={videoInfo.path}
+              >
                 {videoInfo.path}
               </p>
 
@@ -103,7 +168,9 @@ export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
                     <FileVideo className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
                     <span>
                       {videoStream.codec_name?.toUpperCase() || 'VIDEO'}
-                      {videoStream.width && videoStream.height ? ` (${videoStream.width}x${videoStream.height})` : ''}
+                      {videoStream.width && videoStream.height
+                        ? ` (${videoStream.width}x${videoStream.height})`
+                        : ''}
                     </span>
                   </div>
                 )}
@@ -116,7 +183,7 @@ export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
                 {videoInfo.subtitle_streams_count > 0 && (
                   <div className="flex items-center space-x-1.5 bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700/50">
                     <Subtitles className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
-                    <span>{videoInfo.subtitle_streams_count} Existing Sub</span>
+                    <span>{videoInfo.subtitle_streams_count} Embedded Sub</span>
                   </div>
                 )}
               </div>
@@ -124,6 +191,17 @@ export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            {onOpenPreview && (
+              <button
+                type="button"
+                onClick={onOpenPreview}
+                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-sm"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Preview</span>
+              </button>
+            )}
+
             <button
               onClick={handlePickFile}
               className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg text-xs font-medium transition-colors"
@@ -139,6 +217,73 @@ export const VideoDropzone: React.FC<VideoDropzoneProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Existing Subtitle Tracks Extraction Panel */}
+        {existingSubs.length > 0 && (
+          <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center space-x-1.5">
+                <Subtitles className="w-3.5 h-3.5 text-blue-500" />
+                <span>Extract Embedded Subtitle Tracks ({existingSubs.length})</span>
+              </span>
+              <span className="text-[10px] text-zinc-400">
+                Click to export embedded tracks as standalone .srt files
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {existingSubs.map((sub) => {
+                const label = sub.title || sub.language || `Stream #${sub.index}`;
+                const isExtracting = extractingIndex === sub.index;
+                const isDone = extractedMap[sub.index];
+
+                return (
+                  <div
+                    key={sub.index}
+                    className="flex items-center justify-between p-2 rounded-xl bg-zinc-50 dark:bg-zinc-950/70 border border-zinc-200 dark:border-zinc-800 text-xs"
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <p className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                        {label}
+                      </p>
+                      <p className="text-[10px] font-mono text-zinc-400 uppercase">
+                        Stream #{sub.index} • {sub.codec_name || 'subtitle'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isExtracting}
+                      onClick={() => handleExtractSubtitle(sub.index, label)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors ${
+                        isDone
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                          : 'bg-zinc-200/80 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
+                      }`}
+                    >
+                      {isExtracting ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                          <span>Extracting...</span>
+                        </>
+                      ) : isDone ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-500" />
+                          <span>Extracted!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-3 h-3" />
+                          <span>Export .SRT</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

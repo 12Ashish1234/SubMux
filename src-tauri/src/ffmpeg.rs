@@ -51,21 +51,36 @@ pub struct VideoInfo {
     pub subtitle_streams_count: usize,
 }
 
-/// Find full path of a binary on macOS, addressing GUI app PATH isolation (Dock/Finder launches)
+/// Find full path of a binary on macOS, checking bundled sidecars, Homebrew, and PATH
 pub fn find_binary(binary_name: &str) -> Option<PathBuf> {
-    // 1. Check standard known paths on macOS
+    // 0. Check App bundle executable folder (SubMux.app/Contents/MacOS/...) and Resources
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let direct_bundle = exe_dir.join(binary_name);
+            if direct_bundle.exists() && direct_bundle.is_file() {
+                return Some(direct_bundle);
+            }
+            let resource_binary = exe_dir.join("../Resources").join(binary_name);
+            if resource_binary.exists() && resource_binary.is_file() {
+                return Some(resource_binary);
+            }
+        }
+    }
+
+    // 1. Check standard known paths on macOS (Homebrew, Cargo, Local)
+    let home = std::env::var("HOME").unwrap_or_default();
     let known_paths = [
         format!("/opt/homebrew/bin/{}", binary_name),
         format!("/usr/local/bin/{}", binary_name),
+        format!("{}/.cargo/bin/{}", home, binary_name),
+        format!("{}/bin/{}", home, binary_name),
         format!("/usr/bin/{}", binary_name),
-        format!("{}/.cargo/bin/{}", std::env::var("HOME").unwrap_or_default(), binary_name),
-        format!("{}/bin/{}", std::env::var("HOME").unwrap_or_default(), binary_name),
     ];
 
-    for p in &known_paths {
-        let path = Path::new(p);
-        if path.is_file() {
-            return Some(path.to_path_buf());
+    for path_str in &known_paths {
+        let p = PathBuf::from(path_str);
+        if p.exists() && p.is_file() {
+            return Some(p);
         }
     }
 
@@ -73,7 +88,7 @@ pub fn find_binary(binary_name: &str) -> Option<PathBuf> {
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path_var) {
             let candidate = dir.join(binary_name);
-            if candidate.is_file() {
+            if candidate.exists() && candidate.is_file() {
                 return Some(candidate);
             }
         }

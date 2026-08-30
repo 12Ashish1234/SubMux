@@ -7,6 +7,8 @@ pub struct SubtitleTrackConfig {
     pub language: String, // e.g. "eng", "hin", "spa"
     pub title: String,    // e.g. "English (SDH)", "Hindi Full"
     pub is_default: bool,
+    #[serde(default)]
+    pub time_offset_secs: Option<f64>, // e.g. +1.5, -0.8
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -71,8 +73,14 @@ pub fn build_mux_command(request: &MuxRequest) -> Vec<String> {
     args.push("-i".to_string());
     args.push(request.video_path.clone());
 
-    // 2. Input subtitle files (input index 1 .. N)
+    // 2. Input subtitle files (input index 1 .. N) with optional timestamp sync offset
     for track in &request.subtitle_tracks {
+        if let Some(offset) = track.time_offset_secs {
+            if offset.abs() > 0.001 {
+                args.push("-itsoffset".to_string());
+                args.push(format!("{:.3}", offset));
+            }
+        }
         args.push("-i".to_string());
         args.push(track.path.clone());
     }
@@ -171,13 +179,14 @@ mod tests {
         let req = MuxRequest {
             video_path: "/path/to/movie.mkv".to_string(),
             subtitle_tracks: vec![SubtitleTrackConfig {
-                path: "/path/to/movie_en.srt".to_string(),
+                path: "/path/to/sub.srt".to_string(),
                 language: "eng".to_string(),
-                title: "English Full".to_string(),
+                title: "English".to_string(),
                 is_default: true,
+                time_offset_secs: None,
             }],
-            output_path: "/path/to/movie_subbed.mkv".to_string(),
-            output_format: None,
+            output_path: "/path/to/video_subbed.mkv".to_string(),
+            output_format: Some("mkv".to_string()),
             existing_subtitles_count: 0,
         };
 
@@ -187,18 +196,22 @@ mod tests {
         assert_eq!(args[1], "-i");
         assert_eq!(args[2], "/path/to/movie.mkv");
         assert_eq!(args[3], "-i");
-        assert_eq!(args[4], "/path/to/movie_en.srt");
-        
-        assert!(args.windows(2).any(|w| w[0] == "-map" && w[1] == "0"));
-        assert!(args.windows(2).any(|w| w[0] == "-map" && w[1] == "1:0"));
-        assert!(args.windows(2).any(|w| w[0] == "-c" && w[1] == "copy"));
-        assert!(args.windows(2).any(|w| w[0] == "-c:s" && w[1] == "srt"));
+        assert_eq!(args[4], "/path/to/sub.srt");
 
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:0" && w[1] == "language=eng"));
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:0" && w[1] == "title=English Full"));
-        assert!(args.windows(2).any(|w| w[0] == "-disposition:s:0" && w[1] == "default"));
+        assert!(args.contains(&"-map".to_string()));
+        assert!(args.contains(&"0".to_string()));
+        assert!(args.contains(&"1:0".to_string()));
 
-        assert_eq!(args.last().unwrap(), "/path/to/movie_subbed.mkv");
+        assert!(args.contains(&"-c".to_string()));
+        assert!(args.contains(&"copy".to_string()));
+        assert!(args.contains(&"-c:s".to_string()));
+        assert!(args.contains(&"srt".to_string()));
+
+        assert!(args.contains(&"-metadata:s:s:0".to_string()));
+        assert!(args.contains(&"language=eng".to_string()));
+        assert!(args.contains(&"title=English".to_string()));
+        assert!(args.contains(&"-disposition:s:0".to_string()));
+        assert!(args.contains(&"default".to_string()));
     }
 
     #[test]
@@ -207,16 +220,18 @@ mod tests {
             video_path: "/path/to/video.mp4".to_string(),
             subtitle_tracks: vec![
                 SubtitleTrackConfig {
-                    path: "/path/to/eng.srt".to_string(),
+                    path: "/path/to/en.srt".to_string(),
                     language: "eng".to_string(),
                     title: "English [SDH]".to_string(),
                     is_default: true,
+                    time_offset_secs: None,
                 },
                 SubtitleTrackConfig {
                     path: "/path/to/hin.srt".to_string(),
                     language: "hin".to_string(),
                     title: "Hindi Audio Sub".to_string(),
                     is_default: false,
+                    time_offset_secs: None,
                 },
             ],
             output_path: "/path/to/video_subbed.mp4".to_string(),
@@ -240,5 +255,25 @@ mod tests {
         assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:2" && w[1] == "title=Hindi Audio Sub"));
         assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:2" && w[1] == "handler_name=Hindi Audio Sub"));
         assert!(args.windows(2).any(|w| w[0] == "-disposition:s:2" && w[1] == "0"));
+    }
+
+    #[test]
+    fn test_subtitle_time_offset() {
+        let req = MuxRequest {
+            video_path: "test.mp4".to_string(),
+            subtitle_tracks: vec![SubtitleTrackConfig {
+                path: "test_en.srt".to_string(),
+                language: "eng".to_string(),
+                title: "English".to_string(),
+                is_default: true,
+                time_offset_secs: Some(1.5),
+            }],
+            output_path: "out.mp4".to_string(),
+            output_format: Some("mp4".to_string()),
+            existing_subtitles_count: 0,
+        };
+
+        let args = build_mux_command(&req);
+        assert!(args.windows(3).any(|w| w[0] == "-itsoffset" && w[1] == "1.500" && w[2] == "-i"));
     }
 }

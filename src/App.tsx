@@ -22,6 +22,8 @@ import { BurnSettings, BurnOptions } from './components/BurnSettings';
 import { OutputSettings } from './components/OutputSettings';
 import { MuxProgressBar } from './components/MuxProgressBar';
 import { ResultModal } from './components/ResultModal';
+import { VideoPreviewModal } from './components/VideoPreviewModal';
+import { BatchQueue } from './components/BatchQueue';
 import { suggestOutputPath, replaceFileExtension, getFileExtension } from './utils/formatters';
 import { useTheme } from './utils/useTheme';
 
@@ -34,6 +36,7 @@ export function App() {
 
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [isProbing, setIsProbing] = useState(false);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   // Mux Mode State
   const [subtitles, setSubtitles] = useState<SubtitleTrackConfig[]>([]);
@@ -167,7 +170,7 @@ export function App() {
 
   // Update Command Preview
   useEffect(() => {
-    if (!videoInfo || !outputPath) {
+    if (!videoInfo || !outputPath || mode === 'batch') {
       setPreviewCommand('');
       return;
     }
@@ -184,6 +187,7 @@ export function App() {
           language: s.language || 'und',
           title: s.title || '',
           is_default: s.is_default,
+          time_offset_secs: s.time_offset_secs,
         })),
         output_path: outputPath,
         output_format: outputFormat,
@@ -251,6 +255,7 @@ export function App() {
             language: s.language || 'und',
             title: s.title || '',
             is_default: s.is_default,
+            time_offset_secs: s.time_offset_secs,
           })),
           output_path: outputPath,
           output_format: outputFormat,
@@ -323,103 +328,121 @@ export function App() {
         {/* Mode Selector Switcher */}
         <ModeSelector mode={mode} onChangeMode={setMode} />
 
-        {/* 1. Source Video Dropzone */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">1. Source Video</h2>
-          </div>
-          <VideoDropzone
-            videoInfo={videoInfo}
-            isProbing={isProbing}
-            onSelectVideo={handleSelectVideo}
-            onClearVideo={handleClearVideo}
-          />
-        </div>
-
-        {/* 2. Subtitle Section: Mux (Multi-Track) vs Burn (Single Track + Style) */}
-        {mode === 'mux' ? (
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Subtitle Tracks</h2>
-            <SubtitleList
-              tracks={subtitles}
-              onAddTracks={handleAddSubtitles}
-              onUpdateTrack={handleUpdateTrack}
-              onRemoveTrack={handleRemoveTrack}
-              onSetDefault={handleSetDefault}
-            />
-          </div>
+        {/* BATCH QUEUE MODE VIEW */}
+        {mode === 'batch' ? (
+          <BatchQueue onCancelAll={handleCancel} />
         ) : (
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Burn-In Configuration</h2>
-            <BurnSettings
-              options={burnOptions}
-              onChangeOptions={(updates) => setBurnOptions((prev) => ({ ...prev, ...updates }))}
-            />
-          </div>
+          /* SINGLE FILE (MUX / BURN) MODE VIEW */
+          <>
+            {/* 1. Source Video Dropzone */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">1. Source Video</h2>
+              </div>
+              <VideoDropzone
+                videoInfo={videoInfo}
+                isProbing={isProbing}
+                onSelectVideo={handleSelectVideo}
+                onClearVideo={handleClearVideo}
+                onOpenPreview={() => setPreviewModalOpen(true)}
+              />
+            </div>
+
+            {/* 2. Subtitle Section: Mux (Multi-Track) vs Burn (Single Track + Style) */}
+            {mode === 'mux' ? (
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Subtitle Tracks</h2>
+                <SubtitleList
+                  tracks={subtitles}
+                  onAddTracks={handleAddSubtitles}
+                  onUpdateTrack={handleUpdateTrack}
+                  onRemoveTrack={handleRemoveTrack}
+                  onSetDefault={handleSetDefault}
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Burn-In Configuration</h2>
+                <BurnSettings
+                  options={burnOptions}
+                  onChangeOptions={(updates) => setBurnOptions((prev) => ({ ...prev, ...updates }))}
+                />
+              </div>
+            )}
+
+            {/* 3. Output Settings */}
+            {videoInfo && (mode === 'mux' ? subtitles.length > 0 : burnOptions.subtitlePath) && (
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">3. Target Destination</h2>
+                <OutputSettings
+                  outputPath={outputPath}
+                  outputFormat={outputFormat}
+                  previewCommandString={previewCommand}
+                  onChangeOutputPath={setOutputPath}
+                  onChangeOutputFormat={handleChangeOutputFormat}
+                />
+              </div>
+            )}
+
+            {/* Progress Bar with Cancel Button */}
+            <MuxProgressBar progress={progress} isMuxing={isProcessing} onCancel={handleCancel} />
+
+            {/* Action Button Area */}
+            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center space-x-1.5">
+                {!videoInfo && <span>• Select a video file to begin</span>}
+                {videoInfo && mode === 'mux' && subtitles.length === 0 && (
+                  <span>• Add at least one subtitle track (.srt, .vtt, .ass)</span>
+                )}
+                {videoInfo && mode === 'burn' && !burnOptions.subtitlePath && (
+                  <span>• Choose a subtitle file to burn</span>
+                )}
+                {videoInfo && !outputPath && <span>• Choose an output destination</span>}
+                {isReady && (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                    {mode === 'mux'
+                      ? `✓ Ready to mux ${subtitles.length} track${subtitles.length > 1 ? 's' : ''} into ${outputFormat.toUpperCase()}`
+                      : `✓ Ready to burn subtitles with Apple Silicon GPU into ${outputFormat.toUpperCase()}`}
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleStartProcessing}
+                disabled={!isReady}
+                className={`px-6 py-3 rounded-xl font-semibold text-xs flex items-center space-x-2 transition-all shadow-lg ${
+                  isReady
+                    ? mode === 'mux'
+                      ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-blue-500/20 hover:scale-[1.01]'
+                      : 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white shadow-amber-500/20 hover:scale-[1.01]'
+                    : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-60'
+                }`}
+              >
+                {mode === 'mux' ? <Sparkles className="w-4 h-4" /> : <Flame className="w-4 h-4" />}
+                <span>
+                  {isProcessing
+                    ? mode === 'mux'
+                      ? 'Muxing...'
+                      : 'Burning Subtitles...'
+                    : mode === 'mux'
+                    ? 'Mux Subtitles'
+                    : 'Burn-In Subtitles'}
+                </span>
+              </button>
+            </div>
+          </>
         )}
-
-        {/* 3. Output Settings */}
-        {videoInfo && (mode === 'mux' ? subtitles.length > 0 : burnOptions.subtitlePath) && (
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">3. Target Destination</h2>
-            <OutputSettings
-              outputPath={outputPath}
-              outputFormat={outputFormat}
-              previewCommandString={previewCommand}
-              onChangeOutputPath={setOutputPath}
-              onChangeOutputFormat={handleChangeOutputFormat}
-            />
-          </div>
-        )}
-
-        {/* Progress Bar with Cancel Button */}
-        <MuxProgressBar progress={progress} isMuxing={isProcessing} onCancel={handleCancel} />
-
-        {/* Action Button Area */}
-        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center space-x-1.5">
-            {!videoInfo && <span>• Select a video file to begin</span>}
-            {videoInfo && mode === 'mux' && subtitles.length === 0 && (
-              <span>• Add at least one subtitle track (.srt, .vtt, .ass)</span>
-            )}
-            {videoInfo && mode === 'burn' && !burnOptions.subtitlePath && (
-              <span>• Choose a subtitle file to burn</span>
-            )}
-            {videoInfo && !outputPath && <span>• Choose an output destination</span>}
-            {isReady && (
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                {mode === 'mux'
-                  ? `✓ Ready to mux ${subtitles.length} track${subtitles.length > 1 ? 's' : ''} into ${outputFormat.toUpperCase()}`
-                  : `✓ Ready to burn subtitles with Apple Silicon GPU into ${outputFormat.toUpperCase()}`}
-              </span>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleStartProcessing}
-            disabled={!isReady}
-            className={`px-6 py-3 rounded-xl font-semibold text-xs flex items-center space-x-2 transition-all shadow-lg ${
-              isReady
-                ? mode === 'mux'
-                  ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-blue-500/20 hover:scale-[1.01]'
-                  : 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white shadow-amber-500/20 hover:scale-[1.01]'
-                : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-60'
-            }`}
-          >
-            {mode === 'mux' ? <Sparkles className="w-4 h-4" /> : <Flame className="w-4 h-4" />}
-            <span>
-              {isProcessing
-                ? mode === 'mux'
-                  ? 'Muxing...'
-                  : 'Burning Subtitles...'
-                : mode === 'mux'
-                ? 'Mux Subtitles'
-                : 'Burn-In Subtitles'}
-            </span>
-          </button>
-        </div>
       </main>
+
+      {/* Video Preview Modal */}
+      {previewModalOpen && (
+        <VideoPreviewModal
+          videoInfo={videoInfo}
+          subtitles={subtitles}
+          onClose={() => setPreviewModalOpen(false)}
+        />
+      )}
 
       {/* Result Modal (Success or Error) */}
       <ResultModal

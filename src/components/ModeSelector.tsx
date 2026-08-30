@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Flame } from 'lucide-react';
+import { Layers, Flame, ListOrdered } from 'lucide-react';
 import { AppMode } from '../types';
 
 interface ModeSelectorProps {
@@ -12,21 +12,35 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ mode, onChangeMode }
     <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
       <div>
         <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
-          <span>{mode === 'mux' ? 'Lossless Subtitle Muxer' : 'Subtitle Burn-In Engine'}</span>
+          <span>
+            {mode === 'mux'
+              ? 'Lossless Subtitle Muxer'
+              : mode === 'burn'
+              ? 'Subtitle Burn-In Engine'
+              : 'TV Show & Series Batch Queue'}
+          </span>
           <span
             className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
               mode === 'mux'
                 ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                : mode === 'burn'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
             }`}
           >
-            {mode === 'mux' ? 'Direct Stream Copy (-c copy)' : 'Apple Silicon GPU (-c:v videotoolbox)'}
+            {mode === 'mux'
+              ? 'Direct Stream Copy (-c copy)'
+              : mode === 'burn'
+              ? 'Apple Silicon GPU (-c:v videotoolbox)'
+              : 'Sequential Auto-Mux'}
           </span>
         </h1>
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
           {mode === 'mux'
-            ? 'Losslessly attach selectable, toggleable subtitle tracks without re-encoding video or losing quality.'
-            : 'Hardcode subtitles directly into video frames with Apple Silicon hardware acceleration for TVs and social media.'}
+            ? 'Losslessly attach selectable subtitle tracks with time-sync offset and stream extraction.'
+            : mode === 'burn'
+            ? 'Hardcode subtitles directly into video frames with Apple Silicon hardware acceleration.'
+            : 'Auto-match entire seasons of episode files with subtitles and process the queue in 1-click.'}
         </p>
       </div>
 
@@ -35,7 +49,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ mode, onChangeMode }
         <button
           type="button"
           onClick={() => onChangeMode('mux')}
-          className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             mode === 'mux'
               ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm'
               : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -48,14 +62,27 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ mode, onChangeMode }
         <button
           type="button"
           onClick={() => onChangeMode('burn')}
-          className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             mode === 'burn'
               ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm'
               : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
           }`}
         >
           <Flame className="w-3.5 h-3.5 text-amber-500" />
-          <span>Burn-In Subtitles</span>
+          <span>Burn-In</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onChangeMode('batch')}
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            mode === 'batch'
+              ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm'
+              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+          }`}
+        >
+          <ListOrdered className="w-3.5 h-3.5 text-indigo-500" />
+          <span>Batch Queue</span>
         </button>
       </div>
     </div>

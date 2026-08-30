@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, Tag, Globe, Check, Star } from 'lucide-react';
+import { Trash2, Tag, Globe, Check, Star, Clock, Plus, Minus } from 'lucide-react';
 import { SubtitleTrackConfig, COMMON_LANGUAGES } from '../types';
 import { getFileExtension } from '../utils/formatters';
 
@@ -23,6 +23,8 @@ export const SubtitleTrackCard: React.FC<SubtitleTrackCardProps> = ({
     !COMMON_LANGUAGES.some((l) => l.code === track.language && l.code !== 'und')
   );
 
+  const currentOffset = track.time_offset_secs || 0;
+
   const handleLangSelect = (code: string) => {
     if (code === 'custom') {
       setIsCustomLang(true);
@@ -31,6 +33,11 @@ export const SubtitleTrackCard: React.FC<SubtitleTrackCardProps> = ({
       setIsCustomLang(false);
       onUpdateTrack(track.id, { language: code });
     }
+  };
+
+  const adjustOffset = (delta: number) => {
+    const next = Math.round((currentOffset + delta) * 10) / 10;
+    onUpdateTrack(track.id, { time_offset_secs: next === 0 ? undefined : next });
   };
 
   return (
@@ -68,6 +75,11 @@ export const SubtitleTrackCard: React.FC<SubtitleTrackCardProps> = ({
                   <span>Default Track</span>
                 </span>
               )}
+              {currentOffset !== 0 && (
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  {currentOffset > 0 ? `+${currentOffset}s` : `${currentOffset}s`} sync
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono truncate mt-0.5" title={track.path}>
               {track.path}
@@ -103,7 +115,7 @@ export const SubtitleTrackCard: React.FC<SubtitleTrackCardProps> = ({
       </div>
 
       {/* Track Config Inputs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3.5 pt-3 border-t border-zinc-200 dark:border-zinc-800/60">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3.5 pt-3 border-t border-zinc-200 dark:border-zinc-800/60">
         {/* Language selector */}
         <div>
           <label className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1 flex items-center space-x-1">
@@ -121,13 +133,13 @@ export const SubtitleTrackCard: React.FC<SubtitleTrackCardProps> = ({
                   {lang.name} ({lang.code})
                 </option>
               ))}
-              <option value="custom">Other / Custom ISO Code...</option>
+              <option value="custom">Other / Custom...</option>
             </select>
 
             {isCustomLang && (
               <input
                 type="text"
-                placeholder="ISO code (e.g. fre)"
+                placeholder="ISO"
                 value={track.language}
                 maxLength={4}
                 onChange={(e) =>
@@ -135,7 +147,7 @@ export const SubtitleTrackCard: React.FC<SubtitleTrackCardProps> = ({
                     language: e.target.value.toLowerCase().replace(/[^a-z]/g, ''),
                   })
                 }
-                className="w-24 bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700/80 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
+                className="w-16 bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700/80 rounded-lg px-2 py-1.5 text-xs font-mono text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
               />
             )}
           </div>
@@ -149,11 +161,58 @@ export const SubtitleTrackCard: React.FC<SubtitleTrackCardProps> = ({
           </label>
           <input
             type="text"
-            placeholder="e.g. English [SDH], Commentary"
+            placeholder="e.g. English [SDH]"
             value={track.title}
             onChange={(e) => onUpdateTrack(track.id, { title: e.target.value })}
             className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700/80 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
           />
+        </div>
+
+        {/* Subtitle Time Sync / Offset (-itsoffset) */}
+        <div>
+          <label className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1 flex items-center justify-between">
+            <span className="flex items-center space-x-1">
+              <Clock className="w-3 h-3 text-zinc-500 dark:text-zinc-400" />
+              <span>Time Sync Offset</span>
+            </span>
+            <span className="text-[10px] font-mono text-zinc-400">
+              {currentOffset === 0 ? 'No shift' : `${currentOffset > 0 ? '+' : ''}${currentOffset}s`}
+            </span>
+          </label>
+
+          <div className="flex items-center space-x-1.5">
+            <button
+              type="button"
+              onClick={() => adjustOffset(-0.5)}
+              title="Delay subtitle by -0.5 seconds"
+              className="p-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-zinc-600 dark:text-zinc-300 transition-colors"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+
+            <input
+              type="number"
+              step="0.1"
+              placeholder="0.0s"
+              value={currentOffset || ''}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                onUpdateTrack(track.id, {
+                  time_offset_secs: isNaN(val) ? undefined : val,
+                });
+              }}
+              className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700/80 rounded-lg px-2 py-1.5 text-xs font-mono text-center text-zinc-900 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
+            />
+
+            <button
+              type="button"
+              onClick={() => adjustOffset(0.5)}
+              title="Advance subtitle by +0.5 seconds"
+              className="p-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-zinc-600 dark:text-zinc-300 transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

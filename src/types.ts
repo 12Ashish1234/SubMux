@@ -1,4 +1,4 @@
-export type AppMode = 'mux' | 'burn';
+export type AppMode = 'mux' | 'burn' | 'batch';
 
 export interface StreamInfo {
   index: number;
@@ -29,6 +29,7 @@ export interface SubtitleTrackConfig {
   language: string;
   title: string;
   is_default: boolean;
+  time_offset_secs?: number; // e.g. +1.5, -0.8
 }
 
 export interface MuxRequest {
@@ -38,6 +39,7 @@ export interface MuxRequest {
     language: string;
     title: string;
     is_default: boolean;
+    time_offset_secs?: number;
   }>;
   output_path: string;
   output_format?: string;
@@ -54,6 +56,19 @@ export interface BurnRequest {
   font_color?: string;      // "white" | "yellow"
   has_box?: boolean;
   quality_preset?: string; // "high" | "medium" | "fast"
+  time_offset_secs?: number;
+}
+
+export interface BatchItem {
+  id: string;
+  video_path: string;
+  video_filename: string;
+  subtitle_path: string | null;
+  subtitle_filename: string | null;
+  output_path: string;
+  output_format: string; // "mkv" | "mp4"
+  status: 'ready' | 'no_subtitle' | 'processing' | 'done' | 'error';
+  error_message?: string | null;
 }
 
 export interface MuxProgressPayload {
