@@ -3,8 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    background-color: #fafafa;
+  }
+
+  html.dark {
+    background-color: #09090b;
+  }
+
   body {
-    @apply bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased min-h-screen select-none font-sans overflow-x-hidden transition-colors duration-150;
+    @apply text-zinc-900 dark:text-zinc-100 antialiased min-h-screen select-none font-sans overflow-x-hidden transition-colors duration-150;
   }
 
   /* Native macOS Window Drag Region */
@@ -17,30 +25,39 @@
     -webkit-app-region: no-drag;
   }
 
-  /* Custom scrollbar for macOS feel */
+  /* Native macOS Overlay Scrollbars matching Activity Monitor */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
+    background-color: transparent;
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background-color: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #d4d4d8;
+    background-color: rgba(0, 0, 0, 0.28);
     border-radius: 9999px;
-  }
-
-  .dark ::-webkit-scrollbar-thumb {
-    background: #3f3f46;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #a1a1aa;
+    background-color: rgba(0, 0, 0, 0.48);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.25);
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: #52525b;
+    background-color: rgba(255, 255, 255, 0.45);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background-color: transparent;
   }
 }
