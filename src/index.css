@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-zinc-950 text-zinc-100 antialiased min-h-screen select-none font-sans overflow-x-hidden;
+  }
+
+  /* Native macOS Window Drag Region */
+  .drag-region, [data-tauri-drag-region] {
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+
+  button, input, select, textarea, [data-no-drag], [data-tauri-drag-region="false"] {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Custom scrollbar for macOS feel */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+}
