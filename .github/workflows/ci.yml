@@ -51,4 +51,4 @@ jobs:
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
       - name: Rust Unit & Integration Tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture
+        run: cargo test --manifest-path src-tauri/Cargo.toml -- --test-threads=1 --nocapture

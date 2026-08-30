@@ -1,54 +1,59 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::sync::Once;
 use submux_lib::burner::{build_burn_command, BurnRequest};
 use submux_lib::ffmpeg::{check_environment, find_binary, probe_video};
 use submux_lib::muxer::{build_mux_command, MuxRequest, SubtitleTrackConfig};
 
+static INIT_MEDIA: Once = Once::new();
+
 fn ensure_test_media() {
-    let video_path = "/tmp/submux_test_video.mp4";
-    let srt_en = "/tmp/submux_test_en.srt";
-    let srt_hi = "/tmp/submux_test_hi.srt";
+    INIT_MEDIA.call_once(|| {
+        let video_path = "/tmp/submux_test_video.mp4";
+        let srt_en = "/tmp/submux_test_en.srt";
+        let srt_hi = "/tmp/submux_test_hi.srt";
 
-    let ffmpeg_bin = find_binary("ffmpeg")
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| "ffmpeg".to_string());
+        let ffmpeg_bin = find_binary("ffmpeg")
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "ffmpeg".to_string());
 
-    // 1. Generate 2-second test video if not present
-    if !Path::new(video_path).exists() {
-        let _ = Command::new(&ffmpeg_bin)
-            .args(&[
-                "-y",
-                "-f",
-                "lavfi",
-                "-i",
-                "testsrc=duration=2:size=320x240:rate=30",
-                "-f",
-                "lavfi",
-                "-i",
-                "sine=frequency=1000:duration=2",
-                "-c:v",
-                "libx264",
-                "-c:a",
-                "aac",
-                "-pix_fmt",
-                "yuv420p",
-                video_path,
-            ])
-            .status();
-    }
+        // 1. Generate 2-second test video if not present
+        if !Path::new(video_path).exists() {
+            let _ = Command::new(&ffmpeg_bin)
+                .args(&[
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc=duration=2:size=320x240:rate=30",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "sine=frequency=1000:duration=2",
+                    "-c:v",
+                    "libx264",
+                    "-c:a",
+                    "aac",
+                    "-pix_fmt",
+                    "yuv420p",
+                    video_path,
+                ])
+                .status();
+        }
 
-    // 2. Generate English SRT subtitle file if not present
-    if !Path::new(srt_en).exists() {
-        let content_en = "1\n00:00:00,100 --> 00:00:01,800\nEnglish Test Subtitle\n\n";
-        let _ = fs::write(srt_en, content_en);
-    }
+        // 2. Generate English SRT subtitle file if not present
+        if !Path::new(srt_en).exists() {
+            let content_en = "1\n00:00:00,100 --> 00:00:01,800\nEnglish Test Subtitle\n\n";
+            let _ = fs::write(srt_en, content_en);
+        }
 
-    // 3. Generate Hindi SRT subtitle file if not present
-    if !Path::new(srt_hi).exists() {
-        let content_hi = "1\n00:00:00,100 --> 00:00:01,800\nHindi Test Subtitle\n\n";
-        let _ = fs::write(srt_hi, content_hi);
-    }
+        // 3. Generate Hindi SRT subtitle file if not present
+        if !Path::new(srt_hi).exists() {
+            let content_hi = "1\n00:00:00,100 --> 00:00:01,800\nHindi Test Subtitle\n\n";
+            let _ = fs::write(srt_hi, content_hi);
+        }
+    });
 }
 
 #[test]
@@ -147,6 +152,20 @@ fn test_subtitle_burn_flow() {
     };
 
     let burn_args = build_burn_command(&burn_req);
+
+    // Check if the current environment's FFmpeg was built with 'subtitles' filter (libass)
+    let filters_output = Command::new(&ffmpeg_bin).arg("-filters").output();
+
+    if let Ok(out) = filters_output {
+        let stdout_str = String::from_utf8_lossy(&out.stdout);
+        if !stdout_str.contains("subtitles") {
+            println!(
+                "Note: Installed FFmpeg does not include 'subtitles' filter (libass). Skipping burn execution."
+            );
+            return;
+        }
+    }
+
     let burn_status = Command::new(&ffmpeg_bin)
         .args(&burn_args)
         .status()
