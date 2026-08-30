@@ -19,11 +19,20 @@ fn ensure_test_media() {
         let _ = Command::new(&ffmpeg_bin)
             .args(&[
                 "-y",
-                "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=30",
-                "-f", "lavfi", "-i", "sine=frequency=1000:duration=2",
-                "-c:v", "libx264",
-                "-c:a", "aac",
-                "-pix_fmt", "yuv420p",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=2:size=320x240:rate=30",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=1000:duration=2",
+                "-c:v",
+                "libx264",
+                "-c:a",
+                "aac",
+                "-pix_fmt",
+                "yuv420p",
                 video_path,
             ])
             .status();
