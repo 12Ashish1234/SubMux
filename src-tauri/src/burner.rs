@@ -58,7 +58,10 @@ pub fn build_burn_command(request: &BurnRequest) -> Vec<String> {
     // 2. Video Filter with force_style
     let escaped_sub_path = escape_filter_path(&request.subtitle_path);
     let style = build_force_style(request);
-    let filter_arg = format!("subtitles='{}':force_style='{}'", escaped_sub_path, style);
+    let filter_arg = format!(
+        "subtitles=filename='{}':force_style='{}'",
+        escaped_sub_path, style
+    );
 
     args.push("-vf".to_string());
     args.push(filter_arg);
@@ -142,7 +145,7 @@ mod tests {
 
         // Check filter
         assert_eq!(args[3], "-vf");
-        assert!(args[4].starts_with("subtitles='/path/sub.srt':force_style="));
+        assert!(args[4].starts_with("subtitles=filename='/path/sub.srt':force_style="));
         assert!(args[4].contains("FontSize=26"));
         assert!(args[4].contains("PrimaryColour=&H0000FFFF&"));
 
