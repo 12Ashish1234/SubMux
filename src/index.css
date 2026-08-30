@@ -3,12 +3,8 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    color-scheme: dark;
-  }
-
   body {
-    @apply bg-zinc-950 text-zinc-100 antialiased min-h-screen select-none font-sans overflow-x-hidden;
+    @apply bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased min-h-screen select-none font-sans overflow-x-hidden transition-colors duration-150;
   }
 
   /* Native macOS Window Drag Region */
@@ -32,11 +28,19 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #3f3f46;
+    background: #d4d4d8;
     border-radius: 9999px;
   }
 
+  .dark ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+  }
+
   ::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
     background: #52525b;
   }
 }

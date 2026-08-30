@@ -19,8 +19,10 @@ import { OutputSettings } from './components/OutputSettings';
 import { MuxProgressBar } from './components/MuxProgressBar';
 import { ResultModal } from './components/ResultModal';
 import { suggestOutputPath, replaceFileExtension, getFileExtension } from './utils/formatters';
+import { useTheme } from './utils/useTheme';
 
 export function App() {
+  const { theme, toggleTheme } = useTheme();
   const [envStatus, setEnvStatus] = useState<EnvironmentStatus | null>(null);
   const [isCheckingEnv, setIsCheckingEnv] = useState(false);
 
@@ -241,8 +243,13 @@ export function App() {
     Boolean(envStatus?.ffmpeg_available);
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100">
-      <TitleBar envStatus={envStatus} onRefreshEnv={checkEnv} />
+    <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+      <TitleBar
+        envStatus={envStatus}
+        onRefreshEnv={checkEnv}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
 
       <main className="flex-1 max-w-4xl w-full mx-auto p-6 space-y-6">
         {/* FFmpeg Missing Notice Banner */}
@@ -255,15 +262,15 @@ export function App() {
         )}
 
         {/* Hero / Header info */}
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800/80">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-200 dark:border-zinc-800/80">
           <div>
-            <h1 className="text-xl font-bold text-zinc-100 flex items-center space-x-2">
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
               <span>Lossless Subtitle Muxer</span>
-              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                 Direct Stream Copy (-c copy)
               </span>
             </h1>
-            <p className="text-xs text-zinc-400 mt-1">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
               Attach selectable & toggleable subtitle tracks to MP4 or MKV without video re-encoding or quality loss.
             </p>
           </div>
@@ -272,7 +279,7 @@ export function App() {
         {/* Video File Dropzone / Card */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-200">1. Source Video</h2>
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">1. Source Video</h2>
           </div>
           <VideoDropzone
             videoInfo={videoInfo}
@@ -284,7 +291,7 @@ export function App() {
 
         {/* Subtitle Files List */}
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-zinc-200">2. Subtitle Tracks</h2>
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Subtitle Tracks</h2>
           <SubtitleList
             tracks={subtitles}
             onAddTracks={handleAddSubtitles}
@@ -297,7 +304,7 @@ export function App() {
         {/* Output Settings */}
         {videoInfo && subtitles.length > 0 && (
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-zinc-200">3. Target Destination</h2>
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">3. Target Destination</h2>
             <OutputSettings
               outputPath={outputPath}
               outputFormat={outputFormat}
@@ -312,8 +319,8 @@ export function App() {
         <MuxProgressBar progress={progress} isMuxing={isMuxing} onCancel={handleCancelMux} />
 
         {/* Action Button Area */}
-        <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
-          <div className="text-xs text-zinc-400 flex items-center space-x-1.5">
+        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+          <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center space-x-1.5">
             {!videoInfo && <span>• Select a video file to begin</span>}
             {videoInfo && subtitles.length === 0 && (
               <span>• Add at least one subtitle track (.srt, .vtt, .ass)</span>
@@ -322,7 +329,7 @@ export function App() {
               <span>• Choose an output destination</span>
             )}
             {isReadyToMux && (
-              <span className="text-emerald-400 font-medium">
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                 ✓ Ready to mux {subtitles.length} subtitle track{subtitles.length > 1 ? 's' : ''} into {outputFormat.toUpperCase()}
               </span>
             )}
@@ -335,7 +342,7 @@ export function App() {
             className={`px-6 py-3 rounded-xl font-semibold text-xs flex items-center space-x-2 transition-all shadow-lg ${
               isReadyToMux
                 ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-blue-500/20 hover:scale-[1.01]'
-                : 'bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
+                : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-60'
             }`}
           >
             <Sparkles className="w-4 h-4" />

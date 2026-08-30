@@ -37,7 +37,6 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
         const filePaths = Array.isArray(selected) ? selected : [selected];
         const newTracks: SubtitleTrackConfig[] = filePaths.map((path, idx) => {
           const filename = extractFilename(path);
-          // Try to infer language and title from filename (e.g. video.eng.srt or video.Hindi.srt)
           const lower = filename.toLowerCase();
           let lang = 'eng';
           let title = 'English';
@@ -65,7 +64,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
             filename,
             language: lang,
             title,
-            is_default: tracks.length === 0 && idx === 0, // First track default if none exist
+            is_default: tracks.length === 0 && idx === 0,
           };
         });
 
@@ -100,15 +99,15 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <Subtitles className="w-4 h-4 text-zinc-400" />
-          <h2 className="text-sm font-semibold text-zinc-200">
+          <Subtitles className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
             Subtitle Tracks ({tracks.length})
           </h2>
         </div>
 
         <button
           onClick={handlePickSubtitles}
-          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors shadow-sm"
+          className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 active:bg-zinc-300 dark:active:bg-zinc-600 text-zinc-700 dark:text-zinc-200 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors shadow-sm"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add Subtitles</span>
@@ -120,12 +119,12 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={handlePickSubtitles}
-          className="border border-dashed border-zinc-800 hover:border-zinc-700 bg-zinc-900/30 hover:bg-zinc-900/50 rounded-xl p-6 text-center cursor-pointer transition-all"
+          className="border border-dashed border-zinc-300 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 rounded-xl p-6 text-center cursor-pointer transition-all shadow-sm"
         >
-          <p className="text-xs font-medium text-zinc-400">
-            No subtitles added yet. Click <span className="text-blue-400 font-semibold">+ Add Subtitles</span> or drag subtitle files here.
+          <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            No subtitles added yet. Click <span className="text-blue-600 dark:text-blue-400 font-semibold">+ Add Subtitles</span> or drag subtitle files here.
           </p>
-          <p className="text-[11px] text-zinc-500 mt-1">
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
             Supports <span className="font-mono">.srt</span>, <span className="font-mono">.vtt</span>, <span className="font-mono">.ass</span>
           </p>
         </div>
