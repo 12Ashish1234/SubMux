@@ -1,7 +1,11 @@
-use std::process::Command;
 use crate::ffmpeg::find_binary;
+use std::process::Command;
 
-pub fn build_extract_command(video_path: &str, stream_index: usize, output_path: &str) -> Vec<String> {
+pub fn build_extract_command(
+    video_path: &str,
+    stream_index: usize,
+    output_path: &str,
+) -> Vec<String> {
     vec![
         "-y".to_string(),
         "-i".to_string(),
@@ -17,8 +21,10 @@ pub fn extract_subtitle_track(
     stream_index: usize,
     output_path: &str,
 ) -> Result<String, String> {
-    let ffmpeg_path = find_binary("ffmpeg")
-        .ok_or_else(|| "ffmpeg binary not found. Please install ffmpeg via Homebrew: brew install ffmpeg".to_string())?;
+    let ffmpeg_path = find_binary("ffmpeg").ok_or_else(|| {
+        "ffmpeg binary not found. Please install ffmpeg via Homebrew: brew install ffmpeg"
+            .to_string()
+    })?;
 
     let args = build_extract_command(video_path, stream_index, output_path);
 
@@ -42,13 +48,16 @@ mod tests {
     #[test]
     fn test_build_extract_command() {
         let cmd = build_extract_command("/path/to/movie.mkv", 2, "/path/to/sub.srt");
-        assert_eq!(cmd, vec![
-            "-y",
-            "-i",
-            "/path/to/movie.mkv",
-            "-map",
-            "0:2",
-            "/path/to/sub.srt"
-        ]);
+        assert_eq!(
+            cmd,
+            vec![
+                "-y",
+                "-i",
+                "/path/to/movie.mkv",
+                "-map",
+                "0:2",
+                "/path/to/sub.srt"
+            ]
+        );
     }
 }

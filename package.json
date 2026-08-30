@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "build:app": "tauri build --bundles app",
     "build:dmg": "CI=true tauri build --bundles dmg",
-    "build:all": "CI=true tauri build"
+    "build:all": "CI=true tauri build",
+    "bump": "node scripts/bump-version.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.2.0",

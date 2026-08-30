@@ -22,13 +22,7 @@ pub fn clean_name(filename: &str) -> String {
         .unwrap_or(filename)
         .to_lowercase();
 
-    // Replace common separators
-    let cleaned = base
-        .replace('.', " ")
-        .replace('_', " ")
-        .replace('-', " ");
-
-    cleaned
+    base.replace(['.', '_', '-'], " ")
 }
 
 /// Extracts season/episode identifier like "s01e05", "1x05", "e05", "ep05"
@@ -210,9 +204,18 @@ mod tests {
 
     #[test]
     fn test_episode_token_extraction() {
-        assert_eq!(extract_episode_token("Series.S01E05.1080p.mkv"), Some("s01e05".to_string()));
-        assert_eq!(extract_episode_token("Show.1x02.HDTV.mp4"), Some("s01e02".to_string()));
-        assert_eq!(extract_episode_token("Anime - Episode 09.mkv"), Some("e09".to_string()));
+        assert_eq!(
+            extract_episode_token("Series.S01E05.1080p.mkv"),
+            Some("s01e05".to_string())
+        );
+        assert_eq!(
+            extract_episode_token("Show.1x02.HDTV.mp4"),
+            Some("s01e02".to_string())
+        );
+        assert_eq!(
+            extract_episode_token("Anime - Episode 09.mkv"),
+            Some("e09".to_string())
+        );
     }
 
     #[test]
@@ -228,8 +231,14 @@ mod tests {
 
         let matched = match_videos_and_subtitles(&videos, &subs, "mp4");
         assert_eq!(matched.len(), 2);
-        assert_eq!(matched[0].subtitle_filename.as_deref(), Some("Show.S01E01.English.srt"));
-        assert_eq!(matched[1].subtitle_filename.as_deref(), Some("Show.S01E02.English.srt"));
+        assert_eq!(
+            matched[0].subtitle_filename.as_deref(),
+            Some("Show.S01E01.English.srt")
+        );
+        assert_eq!(
+            matched[1].subtitle_filename.as_deref(),
+            Some("Show.S01E02.English.srt")
+        );
         assert_eq!(matched[0].status, "ready");
     }
 }

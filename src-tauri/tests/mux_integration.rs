@@ -1,7 +1,7 @@
+use std::process::Command;
 use submux_lib::burner::{build_burn_command, BurnRequest};
 use submux_lib::ffmpeg::{check_environment, probe_video};
 use submux_lib::muxer::{build_mux_command, MuxRequest, SubtitleTrackConfig};
-use std::process::Command;
 
 #[test]
 fn test_ffmpeg_environment_and_mux_flow() {
@@ -46,7 +46,10 @@ fn test_ffmpeg_environment_and_mux_flow() {
         .status()
         .expect("Failed to execute ffmpeg mux command");
 
-    assert!(status.success(), "FFmpeg mux command exited with non-zero code");
+    assert!(
+        status.success(),
+        "FFmpeg mux command exited with non-zero code"
+    );
 
     // Probe output to verify streams and metadata
     let out_info = probe_video("/tmp/submux_integrated_out.mp4").expect("Probing output failed");
@@ -55,13 +58,19 @@ fn test_ffmpeg_environment_and_mux_flow() {
     assert_eq!(out_info.subtitle_streams_count, 2);
 
     // Check subtitle track 0 (English)
-    let sub0 = out_info.streams.iter().find(|s| s.codec_type == "subtitle" && s.index == 2);
+    let sub0 = out_info
+        .streams
+        .iter()
+        .find(|s| s.codec_type == "subtitle" && s.index == 2);
     assert!(sub0.is_some());
     assert_eq!(sub0.unwrap().language.as_deref(), Some("eng"));
     assert_eq!(sub0.unwrap().title.as_deref(), Some("English SDH"));
 
     // Check subtitle track 1 (Hindi)
-    let sub1 = out_info.streams.iter().find(|s| s.codec_type == "subtitle" && s.index == 3);
+    let sub1 = out_info
+        .streams
+        .iter()
+        .find(|s| s.codec_type == "subtitle" && s.index == 3);
     assert!(sub1.is_some());
     assert_eq!(sub1.unwrap().language.as_deref(), Some("hin"));
     assert_eq!(sub1.unwrap().title.as_deref(), Some("Hindi Native"));
@@ -95,15 +104,13 @@ fn test_mkv_mux_flow() {
     let env = check_environment();
     let req = MuxRequest {
         video_path: "/tmp/submux_test_video.mp4".to_string(),
-        subtitle_tracks: vec![
-            SubtitleTrackConfig {
-                path: "/tmp/submux_test_en.srt".to_string(),
-                language: "eng".to_string(),
-                title: "English Commentary".to_string(),
-                is_default: true,
-                time_offset_secs: None,
-            },
-        ],
+        subtitle_tracks: vec![SubtitleTrackConfig {
+            path: "/tmp/submux_test_en.srt".to_string(),
+            language: "eng".to_string(),
+            title: "English Commentary".to_string(),
+            is_default: true,
+            time_offset_secs: None,
+        }],
         output_path: "/tmp/submux_integrated_out.mkv".to_string(),
         output_format: Some("mkv".to_string()),
         existing_subtitles_count: 0,
@@ -117,6 +124,7 @@ fn test_mkv_mux_flow() {
         .expect("Failed to execute ffmpeg mux command");
 
     assert!(status.success());
-    let out_info = probe_video("/tmp/submux_integrated_out.mkv").expect("Probing MKV output failed");
+    let out_info =
+        probe_video("/tmp/submux_integrated_out.mkv").expect("Probing MKV output failed");
     assert_eq!(out_info.subtitle_streams_count, 1);
 }

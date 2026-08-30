@@ -8,7 +8,7 @@ pub struct BurnRequest {
     pub output_format: Option<String>,
     pub encoder: Option<String>,        // "videotoolbox" | "libx264"
     pub font_size: Option<u32>,         // e.g. 20, 24, 28
-    pub font_color: Option<String>,      // "white" | "yellow"
+    pub font_color: Option<String>,     // "white" | "yellow"
     pub has_box: Option<bool>,          // translucent background box
     pub quality_preset: Option<String>, // "high" | "medium" | "fast"
 }
@@ -114,7 +114,10 @@ mod tests {
     fn test_escape_filter_path() {
         let p = "/Users/test/My Movies/Movie: Part 1 [2024].srt";
         let escaped = escape_filter_path(p);
-        assert_eq!(escaped, "/Users/test/My Movies/Movie\\: Part 1 \\[2024\\].srt");
+        assert_eq!(
+            escaped,
+            "/Users/test/My Movies/Movie\\: Part 1 \\[2024\\].srt"
+        );
     }
 
     #[test]
@@ -144,7 +147,9 @@ mod tests {
         assert!(args[4].contains("PrimaryColour=&H0000FFFF&"));
 
         // VideoToolbox flags
-        assert!(args.windows(2).any(|w| w[0] == "-c:v" && w[1] == "h264_videotoolbox"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-c:v" && w[1] == "h264_videotoolbox"));
         assert!(args.windows(2).any(|w| w[0] == "-b:v" && w[1] == "8000k"));
         assert!(args.windows(2).any(|w| w[0] == "-c:a" && w[1] == "copy"));
         assert_eq!(args.last().unwrap(), "/path/video_burned.mp4");
@@ -167,7 +172,9 @@ mod tests {
         let args = build_burn_command(&req);
         assert!(args.windows(2).any(|w| w[0] == "-c:v" && w[1] == "libx264"));
         assert!(args.windows(2).any(|w| w[0] == "-crf" && w[1] == "26"));
-        assert!(args.windows(2).any(|w| w[0] == "-preset" && w[1] == "veryfast"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-preset" && w[1] == "veryfast"));
         assert!(args[4].contains("BorderStyle=3"));
     }
 }

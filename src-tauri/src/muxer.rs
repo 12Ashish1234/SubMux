@@ -170,7 +170,10 @@ mod tests {
     #[test]
     fn test_parse_time_str() {
         assert_eq!(parse_time_str("00:00:02.000000"), Some(2.0));
-        assert_eq!(parse_time_str("01:23:45.500"), Some(1.0 * 3600.0 + 23.0 * 60.0 + 45.5));
+        assert_eq!(
+            parse_time_str("01:23:45.500"),
+            Some(1.0 * 3600.0 + 23.0 * 60.0 + 45.5)
+        );
         assert_eq!(parse_time_str("invalid"), None);
     }
 
@@ -242,19 +245,37 @@ mod tests {
         let args = build_mux_command(&req);
 
         // Existing track 0 disposition should be cleared to 0
-        assert!(args.windows(2).any(|w| w[0] == "-disposition:s:0" && w[1] == "0"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-disposition:s:0" && w[1] == "0"));
 
         // New track 0 is stream index 1 (1 + 0)
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:1" && w[1] == "language=eng"));
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:1" && w[1] == "title=English [SDH]"));
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:1" && w[1] == "handler_name=English [SDH]"));
-        assert!(args.windows(2).any(|w| w[0] == "-disposition:s:1" && w[1] == "default"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-metadata:s:s:1" && w[1] == "language=eng"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-metadata:s:s:1" && w[1] == "title=English [SDH]"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-metadata:s:s:1" && w[1] == "handler_name=English [SDH]"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-disposition:s:1" && w[1] == "default"));
 
         // New track 1 is stream index 2 (1 + 1)
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:2" && w[1] == "language=hin"));
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:2" && w[1] == "title=Hindi Audio Sub"));
-        assert!(args.windows(2).any(|w| w[0] == "-metadata:s:s:2" && w[1] == "handler_name=Hindi Audio Sub"));
-        assert!(args.windows(2).any(|w| w[0] == "-disposition:s:2" && w[1] == "0"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-metadata:s:s:2" && w[1] == "language=hin"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-metadata:s:s:2" && w[1] == "title=Hindi Audio Sub"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-metadata:s:s:2" && w[1] == "handler_name=Hindi Audio Sub"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-disposition:s:2" && w[1] == "0"));
     }
 
     #[test]
@@ -274,6 +295,8 @@ mod tests {
         };
 
         let args = build_mux_command(&req);
-        assert!(args.windows(3).any(|w| w[0] == "-itsoffset" && w[1] == "1.500" && w[2] == "-i"));
+        assert!(args
+            .windows(3)
+            .any(|w| w[0] == "-itsoffset" && w[1] == "1.500" && w[2] == "-i"));
     }
 }
