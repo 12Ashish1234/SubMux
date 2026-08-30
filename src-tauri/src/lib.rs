@@ -39,22 +39,30 @@ fn preview_burn_command(request: BurnRequest) -> Vec<String> {
 }
 
 #[tauri::command]
-fn mux_subtitles(app: AppHandle, request: MuxRequest) -> Result<MuxResult, String> {
-    run_mux(&app, &request)
+async fn mux_subtitles(app: AppHandle, request: MuxRequest) -> Result<MuxResult, String> {
+    tauri::async_runtime::spawn_blocking(move || run_mux(&app, &request))
+        .await
+        .map_err(|e| format!("Async task execution failed: {}", e))?
 }
 
 #[tauri::command]
-fn burn_subtitles(app: AppHandle, request: BurnRequest) -> Result<MuxResult, String> {
-    run_burn(&app, &request)
+async fn burn_subtitles(app: AppHandle, request: BurnRequest) -> Result<MuxResult, String> {
+    tauri::async_runtime::spawn_blocking(move || run_burn(&app, &request))
+        .await
+        .map_err(|e| format!("Async task execution failed: {}", e))?
 }
 
 #[tauri::command]
-fn extract_subtitle(
+async fn extract_subtitle(
     video_path: String,
     stream_index: usize,
     output_path: String,
 ) -> Result<String, String> {
-    extract_subtitle_track(&video_path, stream_index, &output_path)
+    tauri::async_runtime::spawn_blocking(move || {
+        extract_subtitle_track(&video_path, stream_index, &output_path)
+    })
+    .await
+    .map_err(|e| format!("Async task execution failed: {}", e))?
 }
 
 #[tauri::command]
