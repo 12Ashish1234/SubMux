@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::burner::{build_burn_command, BurnRequest};
 use crate::muxer::{build_mux_command, parse_time_str, MuxProgressPayload, MuxRequest, MuxResult};
 
 #[derive(Default)]
@@ -442,6 +443,177 @@ pub fn run_mux(app_handle: &AppHandle, request: &MuxRequest) -> Result<MuxResult
         .unwrap_or(0);
 
     // Final completion event
+    let _ = app_handle.emit("mux-progress", MuxProgressPayload {
+        percentage: 100.0,
+        out_time_secs: total_duration_secs,
+        total_duration_secs,
+        speed: current_speed,
+        frame: current_frame,
+    });
+
+    Ok(MuxResult {
+        output_path: request.output_path.clone(),
+        output_size_bytes,
+    })
+}
+
+/// Runs ffmpeg burn-in with real-time progress parsing and cancellation
+pub fn run_burn(app_handle: &AppHandle, request: &BurnRequest) -> Result<MuxResult, String> {
+    let ffmpeg_path = find_binary("ffmpeg")
+        .ok_or_else(|| "ffmpeg binary not found. Please install ffmpeg via Homebrew: brew install ffmpeg".to_string())?;
+
+    // Probe duration for percentage calculation
+    let total_duration_secs = match probe_video(&request.video_path) {
+        Ok(info) => info.duration_secs,
+        Err(_) => 0.0,
+    };
+
+    let base_args = build_burn_command(request);
+
+    // Prepare arguments with progress pipe
+    let mut cmd_args = Vec::new();
+    cmd_args.push("-y".to_string());
+    cmd_args.push("-progress".to_string());
+    cmd_args.push("pipe:1".to_string());
+    cmd_args.push("-nostats".to_string());
+
+    for arg in base_args.iter().skip(1) {
+        cmd_args.push(arg.clone());
+    }
+
+    let mut child = Command::new(&ffmpeg_path)
+        .args(&cmd_args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn ffmpeg: {}", e))?;
+
+    let child_pid = child.id();
+    let state = app_handle.state::<ActiveMuxState>();
+    state.is_cancelled.store(false, Ordering::SeqCst);
+    {
+        let mut pid_guard = state.current_pid.lock().unwrap();
+        *pid_guard = Some(child_pid);
+    }
+
+    let stdout = child.stdout.take().ok_or("Failed to capture ffmpeg stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to capture ffmpeg stderr")?;
+
+    let is_running = Arc::new(AtomicBool::new(true));
+    let is_running_clone = is_running.clone();
+
+    let stderr_handle = std::thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        let mut full_stderr = String::new();
+        for line in reader.lines() {
+            if let Ok(l) = line {
+                full_stderr.push_str(&l);
+                full_stderr.push('\n');
+            }
+            if !is_running_clone.load(Ordering::Relaxed) {
+                break;
+            }
+        }
+        full_stderr
+    });
+
+    let stdout_reader = BufReader::new(stdout);
+    let mut current_speed: Option<String> = None;
+    let mut current_frame: Option<u64> = None;
+
+    for line in stdout_reader.lines() {
+        let line_str = match line {
+            Ok(l) => l,
+            Err(_) => break,
+        };
+
+        let trimmed = line_str.trim();
+        if let Some((k, v)) = trimmed.split_once('=') {
+            match k {
+                "frame" => {
+                    if let Ok(f) = v.parse::<u64>() {
+                        current_frame = Some(f);
+                    }
+                }
+                "speed" => {
+                    current_speed = Some(v.to_string());
+                }
+                "out_time" => {
+                    if let Some(out_secs) = parse_time_str(v) {
+                        let percentage = if total_duration_secs > 0.0 {
+                            ((out_secs / total_duration_secs) * 100.0).clamp(0.0, 99.9)
+                        } else {
+                            0.0
+                        };
+
+                        let _ = app_handle.emit("mux-progress", MuxProgressPayload {
+                            percentage,
+                            out_time_secs: out_secs,
+                            total_duration_secs,
+                            speed: current_speed.clone(),
+                            frame: current_frame,
+                        });
+                    }
+                }
+                "out_time_us" | "out_time_ms" => {
+                    if let Ok(us) = v.parse::<f64>() {
+                        let out_secs = us / 1_000_000.0;
+                        let percentage = if total_duration_secs > 0.0 {
+                            ((out_secs / total_duration_secs) * 100.0).clamp(0.0, 99.9)
+                        } else {
+                            0.0
+                        };
+
+                        let _ = app_handle.emit("mux-progress", MuxProgressPayload {
+                            percentage,
+                            out_time_secs: out_secs,
+                            total_duration_secs,
+                            speed: current_speed.clone(),
+                            frame: current_frame,
+                        });
+                    }
+                }
+                "progress" if v == "end" => {
+                    let _ = app_handle.emit("mux-progress", MuxProgressPayload {
+                        percentage: 100.0,
+                        out_time_secs: total_duration_secs,
+                        total_duration_secs,
+                        speed: current_speed.clone(),
+                        frame: current_frame,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let status = child.wait().map_err(|e| format!("Failed waiting for ffmpeg: {}", e))?;
+    is_running.store(false, Ordering::Relaxed);
+    
+    {
+        let mut pid_guard = state.current_pid.lock().unwrap();
+        *pid_guard = None;
+    }
+
+    let captured_stderr = stderr_handle.join().unwrap_or_default();
+
+    if state.is_cancelled.load(Ordering::SeqCst) {
+        let _ = fs::remove_file(&request.output_path);
+        return Err("Subtitle burn-in was cancelled by user.".to_string());
+    }
+
+    if !status.success() {
+        return Err(format!(
+            "ffmpeg burn-in failed with status code {}:\n\n{}",
+            status.code().unwrap_or(-1),
+            captured_stderr
+        ));
+    }
+
+    let output_size_bytes = fs::metadata(&request.output_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
     let _ = app_handle.emit("mux-progress", MuxProgressPayload {
         percentage: 100.0,
         out_time_secs: total_duration_secs,

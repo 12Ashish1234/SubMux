@@ -1,8 +1,10 @@
+pub mod burner;
 pub mod ffmpeg;
 pub mod muxer;
 
+use burner::{build_burn_command, BurnRequest};
 use ffmpeg::{
-    cancel_mux_process, check_environment, probe_video, run_mux, ActiveMuxState,
+    cancel_mux_process, check_environment, probe_video, run_burn, run_mux, ActiveMuxState,
     EnvironmentStatus, VideoInfo,
 };
 use muxer::{build_mux_command, MuxRequest, MuxResult};
@@ -20,19 +22,26 @@ fn probe_video_file(video_path: String) -> Result<VideoInfo, String> {
 
 #[tauri::command]
 fn preview_command(request: MuxRequest) -> Vec<String> {
-    let mut args = vec!["ffmpeg".to_string()];
-    args.extend(build_mux_command(&request));
-    args
+    let mut cmd = vec!["ffmpeg".to_string()];
+    cmd.extend(build_mux_command(&request));
+    cmd
 }
 
 #[tauri::command]
-async fn mux_subtitles(app_handle: AppHandle, request: MuxRequest) -> Result<MuxResult, String> {
-    // Run blocking ffmpeg operation in a background thread
-    tauri::async_runtime::spawn_blocking(move || {
-        run_mux(&app_handle, &request)
-    })
-    .await
-    .map_err(|e| format!("Task execution failed: {}", e))?
+fn preview_burn_command(request: BurnRequest) -> Vec<String> {
+    let mut cmd = vec!["ffmpeg".to_string()];
+    cmd.extend(build_burn_command(&request));
+    cmd
+}
+
+#[tauri::command]
+fn mux_subtitles(app: AppHandle, request: MuxRequest) -> Result<MuxResult, String> {
+    run_mux(&app, &request)
+}
+
+#[tauri::command]
+fn burn_subtitles(app: AppHandle, request: BurnRequest) -> Result<MuxResult, String> {
+    run_burn(&app, &request)
 }
 
 #[tauri::command]
@@ -55,7 +64,9 @@ pub fn run() {
             check_ffmpeg_env,
             probe_video_file,
             preview_command,
+            preview_burn_command,
             mux_subtitles,
+            burn_subtitles,
             cancel_mux,
             start_window_drag
         ])

@@ -1,16 +1,8 @@
-export interface EnvironmentStatus {
-  ffmpeg_available: boolean;
-  ffprobe_available: boolean;
-  ffmpeg_path: string | null;
-  ffprobe_path: string | null;
-  ffmpeg_version: string | null;
-  ffprobe_version: string | null;
-  error_message: string | null;
-}
+export type AppMode = 'mux' | 'burn';
 
 export interface StreamInfo {
   index: number;
-  codec_type: string;
+  codec_type: 'video' | 'audio' | 'subtitle' | string;
   codec_name?: string;
   language?: string;
   title?: string;
@@ -31,34 +23,45 @@ export interface VideoInfo {
 }
 
 export interface SubtitleTrackConfig {
-  id: string; // React key
+  id: string;
   path: string;
   filename: string;
-  language: string; // ISO 639-2 e.g. "eng", "hin"
+  language: string;
   title: string;
   is_default: boolean;
-  size_bytes?: number;
 }
 
 export interface MuxRequest {
   video_path: string;
-  subtitle_tracks: {
+  subtitle_tracks: Array<{
     path: string;
     language: string;
     title: string;
     is_default: boolean;
-  }[];
+  }>;
   output_path: string;
-  output_format?: string | null;
+  output_format?: string;
   existing_subtitles_count?: number;
+}
+
+export interface BurnRequest {
+  video_path: string;
+  subtitle_path: string;
+  output_path: string;
+  output_format?: string;
+  encoder?: string;        // "videotoolbox" | "libx264"
+  font_size?: number;       // 18, 24, 30
+  font_color?: string;      // "white" | "yellow"
+  has_box?: boolean;
+  quality_preset?: string; // "high" | "medium" | "fast"
 }
 
 export interface MuxProgressPayload {
   percentage: number;
   out_time_secs: number;
   total_duration_secs: number;
-  speed?: string | null;
-  frame?: number | null;
+  speed: string | null;
+  frame: number | null;
 }
 
 export interface MuxResult {
@@ -66,21 +69,26 @@ export interface MuxResult {
   output_size_bytes: number;
 }
 
+export interface EnvironmentStatus {
+  ffmpeg_available: boolean;
+  ffprobe_available: boolean;
+  ffmpeg_version?: string;
+  ffprobe_version?: string;
+  error_message?: string;
+}
+
 export const COMMON_LANGUAGES = [
   { code: 'eng', name: 'English' },
-  { code: 'hin', name: 'Hindi (हिंदी)' },
-  { code: 'spa', name: 'Spanish (Español)' },
-  { code: 'fre', name: 'French (Français)' },
-  { code: 'ger', name: 'German (Deutsch)' },
-  { code: 'jpn', name: 'Japanese (日本語)' },
-  { code: 'kor', name: 'Korean (한국어)' },
-  { code: 'chi', name: 'Chinese (中文)' },
-  { code: 'ita', name: 'Italian (Italiano)' },
-  { code: 'por', name: 'Portuguese (Português)' },
-  { code: 'rus', name: 'Russian (Русский)' },
-  { code: 'ara', name: 'Arabic (العربية)' },
-  { code: 'tam', name: 'Tamil (தமிழ்)' },
-  { code: 'tel', name: 'Telugu (తెలుగు)' },
-  { code: 'ben', name: 'Bengali (বাংলা)' },
-  { code: 'und', name: 'Undetermined / Custom' },
-] as const;
+  { code: 'hin', name: 'Hindi' },
+  { code: 'spa', name: 'Spanish' },
+  { code: 'fre', name: 'French' },
+  { code: 'ger', name: 'German' },
+  { code: 'ita', name: 'Italian' },
+  { code: 'jpn', name: 'Japanese' },
+  { code: 'kor', name: 'Korean' },
+  { code: 'chi', name: 'Chinese' },
+  { code: 'por', name: 'Portuguese' },
+  { code: 'rus', name: 'Russian' },
+  { code: 'ara', name: 'Arabic' },
+  { code: 'und', name: 'Undetermined' },
+];

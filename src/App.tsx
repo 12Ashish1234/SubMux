@@ -1,20 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Flame } from 'lucide-react';
 
 import {
+  AppMode,
   EnvironmentStatus,
   VideoInfo,
   SubtitleTrackConfig,
   MuxProgressPayload,
   MuxResult,
   MuxRequest,
+  BurnRequest,
 } from './types';
 import { TitleBar } from './components/TitleBar';
+import { ModeSelector } from './components/ModeSelector';
 import { FFmpegChecker } from './components/FFmpegChecker';
 import { VideoDropzone } from './components/VideoDropzone';
 import { SubtitleList } from './components/SubtitleList';
+import { BurnSettings, BurnOptions } from './components/BurnSettings';
 import { OutputSettings } from './components/OutputSettings';
 import { MuxProgressBar } from './components/MuxProgressBar';
 import { ResultModal } from './components/ResultModal';
@@ -23,21 +27,35 @@ import { useTheme } from './utils/useTheme';
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
+  const [mode, setMode] = useState<AppMode>('mux');
+
   const [envStatus, setEnvStatus] = useState<EnvironmentStatus | null>(null);
   const [isCheckingEnv, setIsCheckingEnv] = useState(false);
 
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [isProbing, setIsProbing] = useState(false);
 
+  // Mux Mode State
   const [subtitles, setSubtitles] = useState<SubtitleTrackConfig[]>([]);
+
+  // Burn Mode State
+  const [burnOptions, setBurnOptions] = useState<BurnOptions>({
+    subtitlePath: '',
+    fontSize: 24,
+    fontColor: 'white',
+    hasBox: false,
+    encoder: 'videotoolbox',
+    qualityPreset: 'high',
+  });
+
   const [outputPath, setOutputPath] = useState('');
-  const [outputFormat, setOutputFormat] = useState('mkv');
+  const [outputFormat, setOutputFormat] = useState('mp4');
   const [previewCommand, setPreviewCommand] = useState('');
 
-  const [isMuxing, setIsMuxing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<MuxProgressPayload | null>(null);
-  const [muxResult, setMuxResult] = useState<MuxResult | null>(null);
-  const [muxError, setMuxError] = useState<string | null>(null);
+  const [result, setResult] = useState<MuxResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Check FFmpeg environment at startup
   const checkEnv = useCallback(async () => {
@@ -56,7 +74,7 @@ export function App() {
     checkEnv();
   }, [checkEnv]);
 
-  // Listen to muxing progress events from Rust backend
+  // Listen to progress events from Rust backend
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen<MuxProgressPayload>('mux-progress', (event) => {
@@ -77,16 +95,14 @@ export function App() {
       const info = await invoke<VideoInfo>('probe_video_file', { videoPath: filePath });
       setVideoInfo(info);
 
-      // Determine default container from input
       const ext = getFileExtension(filePath);
-      const targetFmt = ['mp4', 'm4v', 'mov'].includes(ext) ? 'mp4' : 'mkv';
+      const targetFmt = mode === 'burn' ? 'mp4' : ['mp4', 'm4v', 'mov'].includes(ext) ? 'mp4' : 'mkv';
       setOutputFormat(targetFmt);
       setOutputPath(suggestOutputPath(filePath, targetFmt));
     } catch (err: any) {
       console.error('Video probe failed:', err);
-      // Fallback simple info if probing failed
       const ext = getFileExtension(filePath);
-      const targetFmt = ['mp4', 'm4v', 'mov'].includes(ext) ? 'mp4' : 'mkv';
+      const targetFmt = mode === 'burn' ? 'mp4' : ['mp4', 'm4v', 'mov'].includes(ext) ? 'mp4' : 'mkv';
       setOutputFormat(targetFmt);
       setOutputPath(suggestOutputPath(filePath, targetFmt));
       setVideoInfo({
@@ -111,7 +127,7 @@ export function App() {
     setPreviewCommand('');
   };
 
-  // Subtitle Handlers
+  // Subtitle Handlers for Mux Mode
   const handleAddSubtitles = (newTracks: SubtitleTrackConfig[]) => {
     setSubtitles((prev) => [...prev, ...newTracks]);
   };
@@ -125,7 +141,6 @@ export function App() {
   const handleRemoveTrack = (id: string) => {
     setSubtitles((prev) => {
       const remaining = prev.filter((t) => t.id !== id);
-      // If the default track was deleted and there are remaining tracks, make first default
       if (remaining.length > 0 && !remaining.some((t) => t.is_default)) {
         remaining[0].is_default = true;
       }
@@ -150,44 +165,73 @@ export function App() {
     }
   };
 
-  // Update command preview whenever inputs change
+  // Update Command Preview
   useEffect(() => {
-    if (!videoInfo || subtitles.length === 0 || !outputPath) {
+    if (!videoInfo || !outputPath) {
       setPreviewCommand('');
       return;
     }
 
-    const request: MuxRequest = {
-      video_path: videoInfo.path,
-      subtitle_tracks: subtitles.map((s) => ({
-        path: s.path,
-        language: s.language || 'und',
-        title: s.title || '',
-        is_default: s.is_default,
-      })),
-      output_path: outputPath,
-      output_format: outputFormat,
-      existing_subtitles_count: videoInfo.subtitle_streams_count || 0,
-    };
+    if (mode === 'mux') {
+      if (subtitles.length === 0) {
+        setPreviewCommand('');
+        return;
+      }
+      const request: MuxRequest = {
+        video_path: videoInfo.path,
+        subtitle_tracks: subtitles.map((s) => ({
+          path: s.path,
+          language: s.language || 'und',
+          title: s.title || '',
+          is_default: s.is_default,
+        })),
+        output_path: outputPath,
+        output_format: outputFormat,
+        existing_subtitles_count: videoInfo.subtitle_streams_count || 0,
+      };
 
-    invoke<string[]>('preview_command', { request })
-      .then((args) => {
-        // Format command with quotes for paths
-        const formatted = args
-          .map((arg) => (arg.includes(' ') ? `"${arg}"` : arg))
-          .join(' ');
-        setPreviewCommand(formatted);
-      })
-      .catch((err) => console.error('Preview command error:', err));
-  }, [videoInfo, subtitles, outputPath, outputFormat]);
+      invoke<string[]>('preview_command', { request })
+        .then((args) => {
+          const formatted = args
+            .map((arg) => (arg.includes(' ') ? `"${arg}"` : arg))
+            .join(' ');
+          setPreviewCommand(formatted);
+        })
+        .catch(console.error);
+    } else {
+      // Burn Mode
+      if (!burnOptions.subtitlePath) {
+        setPreviewCommand('');
+        return;
+      }
+      const request: BurnRequest = {
+        video_path: videoInfo.path,
+        subtitle_path: burnOptions.subtitlePath,
+        output_path: outputPath,
+        output_format: outputFormat,
+        encoder: burnOptions.encoder,
+        font_size: burnOptions.fontSize,
+        font_color: burnOptions.fontColor,
+        has_box: burnOptions.hasBox,
+        quality_preset: burnOptions.qualityPreset,
+      };
 
-  // Execute Lossless Mux
-  const handleStartMux = async () => {
-    if (!videoInfo) return;
-    if (subtitles.length === 0) return;
-    if (!outputPath) return;
+      invoke<string[]>('preview_burn_command', { request })
+        .then((args) => {
+          const formatted = args
+            .map((arg) => (arg.includes(' ') ? `"${arg}"` : arg))
+            .join(' ');
+          setPreviewCommand(formatted);
+        })
+        .catch(console.error);
+    }
+  }, [mode, videoInfo, subtitles, burnOptions, outputPath, outputFormat]);
 
-    setIsMuxing(true);
+  // Execute Action (Mux or Burn)
+  const handleStartProcessing = async () => {
+    if (!videoInfo || !outputPath) return;
+
+    setIsProcessing(true);
     setProgress({
       percentage: 0,
       out_time_secs: 0,
@@ -195,52 +239,67 @@ export function App() {
       speed: null,
       frame: null,
     });
-    setMuxResult(null);
-    setMuxError(null);
-
-    const request: MuxRequest = {
-      video_path: videoInfo.path,
-      subtitle_tracks: subtitles.map((s) => ({
-        path: s.path,
-        language: s.language || 'und',
-        title: s.title || '',
-        is_default: s.is_default,
-      })),
-      output_path: outputPath,
-      output_format: outputFormat,
-      existing_subtitles_count: videoInfo.subtitle_streams_count || 0,
-    };
+    setResult(null);
+    setError(null);
 
     try {
-      const res = await invoke<MuxResult>('mux_subtitles', { request });
-      setMuxResult(res);
+      if (mode === 'mux') {
+        const request: MuxRequest = {
+          video_path: videoInfo.path,
+          subtitle_tracks: subtitles.map((s) => ({
+            path: s.path,
+            language: s.language || 'und',
+            title: s.title || '',
+            is_default: s.is_default,
+          })),
+          output_path: outputPath,
+          output_format: outputFormat,
+          existing_subtitles_count: videoInfo.subtitle_streams_count || 0,
+        };
+        const res = await invoke<MuxResult>('mux_subtitles', { request });
+        setResult(res);
+      } else {
+        const request: BurnRequest = {
+          video_path: videoInfo.path,
+          subtitle_path: burnOptions.subtitlePath,
+          output_path: outputPath,
+          output_format: outputFormat,
+          encoder: burnOptions.encoder,
+          font_size: burnOptions.fontSize,
+          font_color: burnOptions.fontColor,
+          has_box: burnOptions.hasBox,
+          quality_preset: burnOptions.qualityPreset,
+        };
+        const res = await invoke<MuxResult>('burn_subtitles', { request });
+        setResult(res);
+      }
     } catch (err: any) {
-      console.error('Mux error:', err);
+      console.error('Processing error:', err);
       const errMsg = typeof err === 'string' ? err : JSON.stringify(err);
       if (!errMsg.includes('cancelled by user')) {
-        setMuxError(errMsg);
+        setError(errMsg);
       }
     } finally {
-      setIsMuxing(false);
+      setIsProcessing(false);
     }
   };
 
-  const handleCancelMux = async () => {
+  const handleCancel = async () => {
     try {
       await invoke('cancel_mux');
     } catch (err) {
-      console.error('Failed to cancel mux:', err);
+      console.error('Failed to cancel:', err);
     }
-    setIsMuxing(false);
+    setIsProcessing(false);
     setProgress(null);
   };
 
-  const isReadyToMux =
+  const isReady =
     Boolean(videoInfo) &&
-    subtitles.length > 0 &&
     Boolean(outputPath) &&
-    !isMuxing &&
-    Boolean(envStatus?.ffmpeg_available);
+    !isProcessing &&
+    Boolean(envStatus?.ffmpeg_available) &&
+    (mode === 'mux' ? subtitles.length > 0 : Boolean(burnOptions.subtitlePath));
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
@@ -261,22 +320,10 @@ export function App() {
           />
         )}
 
-        {/* Hero / Header info */}
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-200 dark:border-zinc-800/80">
-          <div>
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
-              <span>Lossless Subtitle Muxer</span>
-              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                Direct Stream Copy (-c copy)
-              </span>
-            </h1>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              Attach selectable & toggleable subtitle tracks to MP4 or MKV without video re-encoding or quality loss.
-            </p>
-          </div>
-        </div>
+        {/* Mode Selector Switcher */}
+        <ModeSelector mode={mode} onChangeMode={setMode} />
 
-        {/* Video File Dropzone / Card */}
+        {/* 1. Source Video Dropzone */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">1. Source Video</h2>
@@ -289,20 +336,30 @@ export function App() {
           />
         </div>
 
-        {/* Subtitle Files List */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Subtitle Tracks</h2>
-          <SubtitleList
-            tracks={subtitles}
-            onAddTracks={handleAddSubtitles}
-            onUpdateTrack={handleUpdateTrack}
-            onRemoveTrack={handleRemoveTrack}
-            onSetDefault={handleSetDefault}
-          />
-        </div>
+        {/* 2. Subtitle Section: Mux (Multi-Track) vs Burn (Single Track + Style) */}
+        {mode === 'mux' ? (
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Subtitle Tracks</h2>
+            <SubtitleList
+              tracks={subtitles}
+              onAddTracks={handleAddSubtitles}
+              onUpdateTrack={handleUpdateTrack}
+              onRemoveTrack={handleRemoveTrack}
+              onSetDefault={handleSetDefault}
+            />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">2. Burn-In Configuration</h2>
+            <BurnSettings
+              options={burnOptions}
+              onChangeOptions={(updates) => setBurnOptions((prev) => ({ ...prev, ...updates }))}
+            />
+          </div>
+        )}
 
-        {/* Output Settings */}
-        {videoInfo && subtitles.length > 0 && (
+        {/* 3. Output Settings */}
+        {videoInfo && (mode === 'mux' ? subtitles.length > 0 : burnOptions.subtitlePath) && (
           <div className="space-y-2">
             <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">3. Target Destination</h2>
             <OutputSettings
@@ -316,48 +373,61 @@ export function App() {
         )}
 
         {/* Progress Bar with Cancel Button */}
-        <MuxProgressBar progress={progress} isMuxing={isMuxing} onCancel={handleCancelMux} />
+        <MuxProgressBar progress={progress} isMuxing={isProcessing} onCancel={handleCancel} />
 
         {/* Action Button Area */}
         <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center space-x-1.5">
             {!videoInfo && <span>• Select a video file to begin</span>}
-            {videoInfo && subtitles.length === 0 && (
+            {videoInfo && mode === 'mux' && subtitles.length === 0 && (
               <span>• Add at least one subtitle track (.srt, .vtt, .ass)</span>
             )}
-            {videoInfo && subtitles.length > 0 && !outputPath && (
-              <span>• Choose an output destination</span>
+            {videoInfo && mode === 'burn' && !burnOptions.subtitlePath && (
+              <span>• Choose a subtitle file to burn</span>
             )}
-            {isReadyToMux && (
+            {videoInfo && !outputPath && <span>• Choose an output destination</span>}
+            {isReady && (
               <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                ✓ Ready to mux {subtitles.length} subtitle track{subtitles.length > 1 ? 's' : ''} into {outputFormat.toUpperCase()}
+                {mode === 'mux'
+                  ? `✓ Ready to mux ${subtitles.length} track${subtitles.length > 1 ? 's' : ''} into ${outputFormat.toUpperCase()}`
+                  : `✓ Ready to burn subtitles with Apple Silicon GPU into ${outputFormat.toUpperCase()}`}
               </span>
             )}
           </div>
 
           <button
             type="button"
-            onClick={handleStartMux}
-            disabled={!isReadyToMux}
+            onClick={handleStartProcessing}
+            disabled={!isReady}
             className={`px-6 py-3 rounded-xl font-semibold text-xs flex items-center space-x-2 transition-all shadow-lg ${
-              isReadyToMux
-                ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-blue-500/20 hover:scale-[1.01]'
+              isReady
+                ? mode === 'mux'
+                  ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-blue-500/20 hover:scale-[1.01]'
+                  : 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white shadow-amber-500/20 hover:scale-[1.01]'
                 : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-60'
             }`}
           >
-            <Sparkles className="w-4 h-4" />
-            <span>{isMuxing ? 'Muxing...' : 'Mux Subtitles'}</span>
+            {mode === 'mux' ? <Sparkles className="w-4 h-4" /> : <Flame className="w-4 h-4" />}
+            <span>
+              {isProcessing
+                ? mode === 'mux'
+                  ? 'Muxing...'
+                  : 'Burning Subtitles...'
+                : mode === 'mux'
+                ? 'Mux Subtitles'
+                : 'Burn-In Subtitles'}
+            </span>
           </button>
         </div>
       </main>
 
       {/* Result Modal (Success or Error) */}
       <ResultModal
-        result={muxResult}
-        error={muxError}
+        result={result}
+        error={error}
         onClose={() => {
-          setMuxResult(null);
-          setMuxError(null);
+          setResult(null);
+          setError(null);
         }}
       />
     </div>

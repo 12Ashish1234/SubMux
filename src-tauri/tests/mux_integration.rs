@@ -1,3 +1,4 @@
+use submux_lib::burner::{build_burn_command, BurnRequest};
 use submux_lib::ffmpeg::{check_environment, probe_video};
 use submux_lib::muxer::{build_mux_command, MuxRequest, SubtitleTrackConfig};
 use std::process::Command;
@@ -65,6 +66,29 @@ fn test_ffmpeg_environment_and_mux_flow() {
 }
 
 #[test]
+fn test_subtitle_burn_flow() {
+    let burn_req = BurnRequest {
+        video_path: "/tmp/submux_test_video.mp4".to_string(),
+        subtitle_path: "/tmp/submux_test_en.srt".to_string(),
+        output_path: "/tmp/submux_burned_test.mp4".to_string(),
+        output_format: Some("mp4".to_string()),
+        encoder: Some("h264_videotoolbox".to_string()),
+        font_size: Some(24),
+        font_color: Some("yellow".to_string()),
+        has_box: Some(false),
+        quality_preset: Some("fast".to_string()),
+    };
+
+    let burn_args = build_burn_command(&burn_req);
+    let burn_status = Command::new("ffmpeg")
+        .args(&burn_args)
+        .status()
+        .expect("Failed to execute burn command");
+    assert!(burn_status.success(), "Burn ffmpeg failed");
+    assert!(std::path::Path::new("/tmp/submux_burned_test.mp4").exists());
+}
+
+#[test]
 fn test_mkv_mux_flow() {
     let env = check_environment();
     let req = MuxRequest {
@@ -87,10 +111,9 @@ fn test_mkv_mux_flow() {
     let status = Command::new(&ffmpeg_path)
         .args(&args)
         .status()
-        .expect("Failed to execute ffmpeg mux command for MKV");
+        .expect("Failed to execute ffmpeg mux command");
 
-    assert!(status.success(), "FFmpeg MKV mux exited with non-zero code");
-
+    assert!(status.success());
     let out_info = probe_video("/tmp/submux_integrated_out.mkv").expect("Probing MKV output failed");
     assert_eq!(out_info.subtitle_streams_count, 1);
 }
