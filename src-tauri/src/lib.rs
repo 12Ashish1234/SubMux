@@ -3,6 +3,7 @@ pub mod burner;
 pub mod extractor;
 pub mod ffmpeg;
 pub mod muxer;
+pub mod subtitle_cleaner;
 
 use batch::{match_videos_and_subtitles, BatchItem};
 use burner::{build_burn_command, BurnRequest};
@@ -12,6 +13,7 @@ use ffmpeg::{
     EnvironmentStatus, VideoInfo,
 };
 use muxer::{build_mux_command, MuxRequest, MuxResult};
+use subtitle_cleaner::{sanitize_subtitle_file, SanitizeResult};
 use tauri::{AppHandle, State};
 
 #[tauri::command]
@@ -66,6 +68,11 @@ async fn extract_subtitle(
 }
 
 #[tauri::command]
+fn sanitize_subtitle(input_path: String) -> Result<SanitizeResult, String> {
+    sanitize_subtitle_file(&input_path)
+}
+
+#[tauri::command]
 fn match_batch_files(
     video_paths: Vec<String>,
     subtitle_paths: Vec<String>,
@@ -98,6 +105,7 @@ pub fn run() {
             mux_subtitles,
             burn_subtitles,
             extract_subtitle,
+            sanitize_subtitle,
             match_batch_files,
             cancel_mux,
             start_window_drag

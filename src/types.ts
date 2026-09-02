@@ -22,6 +22,14 @@ export interface VideoInfo {
   subtitle_streams_count: number;
 }
 
+export interface SanitizeResult {
+  sanitized_path: string;
+  original_format: string; // "srt" | "vtt" | "ass" | "unknown"
+  detected_encoding: string; // "UTF-8" | "UTF-8-BOM" | "UTF-16LE" | "UTF-16BE" | "Windows-1252"
+  was_converted: boolean;
+  cues_count: number;
+}
+
 export interface SubtitleTrackConfig {
   id: string;
   path: string;
@@ -30,6 +38,10 @@ export interface SubtitleTrackConfig {
   title: string;
   is_default: boolean;
   time_offset_secs?: number; // e.g. +1.5, -0.8
+  encoding?: string;
+  original_format?: string;
+  was_converted?: boolean;
+  cues_count?: number;
 }
 
 export interface MuxRequest {
@@ -56,7 +68,6 @@ export interface BurnRequest {
   font_color?: string;      // "white" | "yellow"
   has_box?: boolean;
   quality_preset?: string; // "high" | "medium" | "fast"
-  time_offset_secs?: number;
 }
 
 export interface BatchItem {

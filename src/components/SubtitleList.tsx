@@ -1,7 +1,8 @@
 import React from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import { Plus, Subtitles } from 'lucide-react';
-import { SubtitleTrackConfig } from '../types';
+import { SubtitleTrackConfig, SanitizeResult } from '../types';
 import { SubtitleTrackCard } from './SubtitleTrackCard';
 import { extractFilename } from '../utils/formatters';
 
@@ -20,6 +21,78 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
   onRemoveTrack,
   onSetDefault,
 }) => {
+  const processSubtitleFiles = async (filePaths: string[]) => {
+    const newTracks: SubtitleTrackConfig[] = [];
+
+    for (let idx = 0; idx < filePaths.length; idx++) {
+      const path = filePaths[idx];
+      const filename = extractFilename(path);
+      const lower = filename.toLowerCase();
+      let lang = 'eng';
+      let title = 'English';
+
+      if (lower.includes('hin') || lower.includes('hindi')) {
+        lang = 'hin';
+        title = 'Hindi';
+      } else if (lower.includes('spa') || lower.includes('spanish')) {
+        lang = 'spa';
+        title = 'Spanish';
+      } else if (lower.includes('fre') || lower.includes('fra') || lower.includes('french')) {
+        lang = 'fre';
+        title = 'French';
+      } else if (lower.includes('ger') || lower.includes('deu') || lower.includes('german')) {
+        lang = 'ger';
+        title = 'German';
+      } else if (lower.includes('jpn') || lower.includes('japanese')) {
+        lang = 'jpn';
+        title = 'Japanese';
+      } else if (lower.includes('chi') || lower.includes('chinese')) {
+        lang = 'chi';
+        title = 'Chinese';
+      } else if (lower.includes('ara') || lower.includes('arabic')) {
+        lang = 'ara';
+        title = 'Arabic';
+      } else if (lower.includes('rus') || lower.includes('russian')) {
+        lang = 'rus';
+        title = 'Russian';
+      }
+
+      let sanitizedPath = path;
+      let detectedEncoding = 'UTF-8';
+      let originalFormat = 'srt';
+      let wasConverted = false;
+      let cuesCount = 0;
+
+      try {
+        const sanResult = await invoke<SanitizeResult>('sanitize_subtitle', { inputPath: path });
+        sanitizedPath = sanResult.sanitized_path;
+        detectedEncoding = sanResult.detected_encoding;
+        originalFormat = sanResult.original_format;
+        wasConverted = sanResult.was_converted;
+        cuesCount = sanResult.cues_count;
+      } catch (e) {
+        console.warn('Subtitle sanitization warning:', e);
+      }
+
+      newTracks.push({
+        id: `${Date.now()}-${idx}-${Math.random()}`,
+        path: sanitizedPath,
+        filename,
+        language: lang,
+        title,
+        is_default: tracks.length === 0 && idx === 0,
+        encoding: detectedEncoding,
+        original_format: originalFormat,
+        was_converted: wasConverted,
+        cues_count: cuesCount,
+      });
+    }
+
+    if (newTracks.length > 0) {
+      onAddTracks(newTracks);
+    }
+  };
+
   const handlePickSubtitles = async () => {
     try {
       const selected = await open({
@@ -27,71 +100,27 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
         title: 'Select Subtitle Files',
         filters: [
           {
-            name: 'Subtitle Files (*.srt, *.vtt, *.ass)',
-            extensions: ['srt', 'vtt', 'ass'],
+            name: 'Subtitle Files (*.srt, *.vtt, *.ass, *.ssa)',
+            extensions: ['srt', 'vtt', 'ass', 'ssa'],
           },
         ],
       });
 
       if (selected) {
         const filePaths = Array.isArray(selected) ? selected : [selected];
-        const newTracks: SubtitleTrackConfig[] = filePaths.map((path, idx) => {
-          const filename = extractFilename(path);
-          const lower = filename.toLowerCase();
-          let lang = 'eng';
-          let title = 'English';
-
-          if (lower.includes('hin') || lower.includes('hindi')) {
-            lang = 'hin';
-            title = 'Hindi';
-          } else if (lower.includes('spa') || lower.includes('spanish')) {
-            lang = 'spa';
-            title = 'Spanish';
-          } else if (lower.includes('fre') || lower.includes('fra') || lower.includes('french')) {
-            lang = 'fre';
-            title = 'French';
-          } else if (lower.includes('ger') || lower.includes('deu') || lower.includes('german')) {
-            lang = 'ger';
-            title = 'German';
-          } else if (lower.includes('jpn') || lower.includes('japanese')) {
-            lang = 'jpn';
-            title = 'Japanese';
-          }
-
-          return {
-            id: `${Date.now()}-${idx}-${Math.random()}`,
-            path,
-            filename,
-            language: lang,
-            title,
-            is_default: tracks.length === 0 && idx === 0,
-          };
-        });
-
-        onAddTracks(newTracks);
+        await processSubtitleFiles(filePaths);
       }
     } catch (err) {
       console.error('Subtitle file picker error:', err);
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const fileList = Array.from(e.dataTransfer.files);
-      const newTracks: SubtitleTrackConfig[] = fileList.map((file, idx) => {
-        const path = (file as any).path || file.name;
-        const filename = extractFilename(path);
-        return {
-          id: `${Date.now()}-${idx}-${Math.random()}`,
-          path,
-          filename,
-          language: 'eng',
-          title: 'English',
-          is_default: tracks.length === 0 && idx === 0,
-        };
-      });
-      onAddTracks(newTracks);
+      const paths = fileList.map((file) => (file as any).path || file.name).filter(Boolean);
+      await processSubtitleFiles(paths);
     }
   };
 
@@ -125,7 +154,7 @@ export const SubtitleList: React.FC<SubtitleListProps> = ({
             No subtitles added yet. Click <span className="text-blue-600 dark:text-blue-400 font-semibold">+ Add Subtitles</span> or drag subtitle files here.
           </p>
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
-            Supports <span className="font-mono">.srt</span>, <span className="font-mono">.vtt</span>, <span className="font-mono">.ass</span>
+            Supports <span className="font-mono">.srt</span>, <span className="font-mono">.vtt</span>, <span className="font-mono">.ass</span> (Auto-converted & UTF-8 verified)
           </p>
         </div>
       ) : (
