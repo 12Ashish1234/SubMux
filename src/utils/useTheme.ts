@@ -1,31 +1,71 @@
 import { useState, useEffect } from 'react';
 
-export type Theme = 'dark' | 'light';
+export type ThemePreference = 'system' | 'light' | 'dark';
+export type ResolvedTheme = 'light' | 'dark';
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => {
+  const [preference, setPreference] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem('submux-theme');
-    if (saved === 'dark' || saved === 'light') {
-      return saved;
+    if (saved === 'light' || saved === 'dark' || saved === 'system') {
+      return saved as ThemePreference;
     }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'system'; // Default to following system settings
   });
 
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return true;
+  });
+
+  // Listen to live macOS system appearance changes
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => {
+      setSystemIsDark(e.matches);
+    };
+
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  const resolvedTheme: ResolvedTheme =
+    preference === 'system' ? (systemIsDark ? 'dark' : 'light') : preference;
+
+  // Apply to DOM whenever theme or preference updates
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
+    if (resolvedTheme === 'dark') {
       root.classList.add('dark');
       root.style.colorScheme = 'dark';
     } else {
       root.classList.remove('dark');
       root.style.colorScheme = 'light';
     }
-    localStorage.setItem('submux-theme', theme);
-  }, [theme]);
 
+    if (preference === 'system') {
+      localStorage.removeItem('submux-theme');
+    } else {
+      localStorage.setItem('submux-theme', preference);
+    }
+  }, [resolvedTheme, preference]);
+
+  // Cycle: System (Auto) -> Light -> Dark -> System
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    setPreference((prev) => {
+      if (prev === 'system') return 'light';
+      if (prev === 'light') return 'dark';
+      return 'system';
+    });
   };
 
-  return { theme, toggleTheme, setTheme };
+  return {
+    theme: resolvedTheme,
+    preference,
+    toggleTheme,
+    setPreference,
+  };
 }

@@ -1,14 +1,15 @@
 import React from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { CheckCircle2, AlertCircle, Sun, Moon } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Sun, Moon, Monitor } from 'lucide-react';
 import { EnvironmentStatus } from '../types';
-import { Theme } from '../utils/useTheme';
+import { ThemePreference, ResolvedTheme } from '../utils/useTheme';
 
 interface TitleBarProps {
   envStatus: EnvironmentStatus | null;
   onRefreshEnv: () => void;
-  theme: Theme;
+  theme: ResolvedTheme;
+  preference: ThemePreference;
   onToggleTheme: () => void;
 }
 
@@ -16,6 +17,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   envStatus,
   onRefreshEnv,
   theme,
+  preference,
   onToggleTheme,
 }) => {
   const isHealthy = envStatus?.ffmpeg_available && envStatus?.ffprobe_available;
@@ -87,19 +89,27 @@ export const TitleBar: React.FC<TitleBarProps> = ({
 
       {/* Right side: Theme Toggle & FFmpeg Status Pill */}
       <div data-no-drag className="flex items-center space-x-2.5 -translate-y-[2px]">
-        {/* Light / Dark Mode Toggle */}
+        {/* Light / Dark / System Mode Toggle */}
         <button
           type="button"
           data-no-drag
           data-tauri-drag-region="false"
           onClick={onToggleTheme}
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="p-1 rounded-lg bg-zinc-200/80 dark:bg-zinc-800/80 hover:bg-zinc-300/80 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 border border-zinc-300/80 dark:border-zinc-700/60 transition-colors"
+          title={
+            preference === 'system'
+              ? `Theme: Auto (Following macOS ${theme}) — Click for Light`
+              : preference === 'light'
+              ? 'Theme: Light Mode — Click for Dark'
+              : 'Theme: Dark Mode — Click for Auto (System)'
+          }
+          className="p-1 rounded-lg bg-zinc-200/80 dark:bg-zinc-800/80 hover:bg-zinc-300/80 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 border border-zinc-300/80 dark:border-zinc-700/60 transition-colors flex items-center justify-center"
         >
-          {theme === 'dark' ? (
-            <Sun className="w-3.5 h-3.5 text-amber-400" />
+          {preference === 'system' ? (
+            <Monitor className="w-3.5 h-3.5 text-blue-500" />
+          ) : preference === 'light' ? (
+            <Sun className="w-3.5 h-3.5 text-amber-500" />
           ) : (
-            <Moon className="w-3.5 h-3.5 text-indigo-500" />
+            <Moon className="w-3.5 h-3.5 text-indigo-400" />
           )}
         </button>
 
