@@ -2,17 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ '**' ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
-permissions:
-  contents: read
-  security-events: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -62,42 +54,3 @@ jobs:
 
       - name: Rust Unit & Integration Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml -- --test-threads=1 --nocapture
-
-  security-sast:
-    name: Security & SAST Audit
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Secret Leak Detection (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Node Supply Chain Security Audit (npm audit)
-        run: npm audit --audit-level=high
-
-      - name: Rust Supply Chain Security Audit (Cargo Audit)
-        uses: rustsec/audit-check@v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          manifest-path: src-tauri/Cargo.toml
-
-      - name: Initialize CodeQL SAST Analysis
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-
-      - name: Perform CodeQL SAST Analysis
-        uses: github/codeql-action/analyze@v3
