@@ -1,6 +1,5 @@
 pub mod batch;
 pub mod burner;
-pub mod downloader;
 pub mod extractor;
 pub mod ffmpeg;
 pub mod muxer;
@@ -8,7 +7,6 @@ pub mod subtitle_cleaner;
 
 use batch::{match_videos_and_subtitles, BatchItem};
 use burner::{build_burn_command, BurnRequest};
-use downloader::download_and_install_ffmpeg;
 use extractor::extract_subtitle_track;
 use ffmpeg::{
     cancel_mux_process, check_environment, probe_video, run_burn, run_mux, ActiveMuxState,
@@ -21,13 +19,6 @@ use tauri::{AppHandle, State};
 #[tauri::command]
 fn check_ffmpeg_env() -> EnvironmentStatus {
     check_environment()
-}
-
-#[tauri::command]
-async fn install_ffmpeg_engine(app: AppHandle) -> Result<EnvironmentStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || download_and_install_ffmpeg(&app))
-        .await
-        .map_err(|e| format!("Async task execution failed: {}", e))?
 }
 
 #[tauri::command]
@@ -108,7 +99,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             check_ffmpeg_env,
-            install_ffmpeg_engine,
             probe_video_file,
             preview_command,
             preview_burn_command,
