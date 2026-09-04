@@ -1,0 +1,19 @@
+changelog:
+  categories:
+    - title: 🚀 New Features & Enhancements
+      labels:
+        - 'enhancement'
+        - 'feature'
+    - title: ⚡ Subtitle & FFmpeg Engine
+      labels:
+        - 'engine'
+        - 'performance'
+    - title: 🐛 Bug Fixes
+      labels:
+        - 'bug'
+        - 'fix'
+    - title: 🛠️ Maintenance & CI/CD
+      labels:
+        - 'chore'
+        - 'ci'
+        - 'dependencies'
