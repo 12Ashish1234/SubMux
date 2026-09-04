@@ -95,17 +95,9 @@ export interface MuxResult {
   output_size_bytes: number;
 }
 
-export interface DownloadProgressPayload {
-  stage: string;
-  percentage: number;
-  message: string;
-}
-
 export interface EnvironmentStatus {
   ffmpeg_available: boolean;
   ffprobe_available: boolean;
-  ffmpeg_path?: string;
-  ffprobe_path?: string;
   ffmpeg_version?: string;
   ffprobe_version?: string;
   error_message?: string;
