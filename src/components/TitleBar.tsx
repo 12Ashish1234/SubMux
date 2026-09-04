@@ -80,7 +80,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             data-tauri-drag-region
             className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-200/80 dark:bg-zinc-800/90 text-zinc-600 dark:text-zinc-400 font-mono border border-zinc-300 dark:border-zinc-700/60 leading-none"
           >
-            v0.1.1
+            v0.1.2
           </span>
         </div>
       </div>

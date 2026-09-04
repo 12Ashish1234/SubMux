@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -49,6 +51,41 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Generate Release Notes & Changelog
+        id: release_notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          cat << 'EOF' > release_body.md
+          ### 📦 Architecture Download Guide
+          | Mac Architecture | Compatible Hardware | Recommended Installer |
+          | :--- | :--- | :--- |
+          | 🍏 **Apple Silicon** | M1, M2, M3, M4 (Air, Pro, Mac mini, Studio, iMac) | **`SubMux_${{ github.ref_name }}_aarch64.dmg`** |
+          | 💻 **Intel** | Older Intel Macs (Core i5, Core i7, Core i9) | **`SubMux_${{ github.ref_name }}_x64.dmg`** |
+
+          ### 🚀 Installation Instructions
+          1. Download the `.dmg` matching your Mac processor from the **Assets** table below.
+          2. Double-click the downloaded `.dmg` and drag **SubMux** into your **Applications** folder.
+          3. Launch **SubMux** from Applications or Spotlight!
+
+          ---
+
+          ### 📝 Changelog
+          EOF
+
+          if [ -n "$PREV_TAG" ]; then
+            git log ${PREV_TAG}..HEAD --pretty=format:"* %s (%h)" >> release_body.md
+            echo "" >> release_body.md
+            echo "" >> release_body.md
+            echo "**Full Diff**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ github.ref_name }}" >> release_body.md
+          else
+            git log -n 15 --pretty=format:"* %s (%h)" >> release_body.md
+          fi
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat release_body.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Build Tauri Application & Package DMG
         uses: tauri-apps/tauri-action@v0
         env:
@@ -57,7 +94,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'SubMux ${{ github.ref_name }}'
-          releaseBody: 'See the release assets below for downloadable installers.'
+          releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
