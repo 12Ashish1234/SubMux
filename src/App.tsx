@@ -28,7 +28,7 @@ import { suggestOutputPath, replaceFileExtension, getFileExtension } from './uti
 import { useTheme } from './utils/useTheme';
 
 export function App() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, preference, toggleTheme } = useTheme();
   const [mode, setMode] = useState<AppMode>('mux');
 
   const [envStatus, setEnvStatus] = useState<EnvironmentStatus | null>(null);
@@ -312,6 +312,7 @@ export function App() {
         envStatus={envStatus}
         onRefreshEnv={checkEnv}
         theme={theme}
+        preference={preference}
         onToggleTheme={toggleTheme}
       />
 
