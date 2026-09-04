@@ -88,11 +88,11 @@ jobs:
       - name: Node Supply Chain Security Audit (npm audit)
         run: npm audit --audit-level=high
 
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
       - name: Rust Supply Chain Security Audit (Cargo Audit)
-        uses: rustsec/audit-check@v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          manifest-path: src-tauri/Cargo.toml
+        run: cargo audit --file src-tauri/Cargo.lock
 
       - name: Initialize CodeQL SAST Analysis
         uses: github/codeql-action/init@v3
