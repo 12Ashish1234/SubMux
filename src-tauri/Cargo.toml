@@ -1,6 +1,6 @@
 [package]
 name = "submux"
-version = "0.1.1"
+version = "0.1.2"
 description = "Fast lossless subtitle muxer for macOS"
 authors = ["SubMux"]
 edition = "2021"

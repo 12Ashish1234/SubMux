@@ -67,8 +67,26 @@ pub fn find_binary(binary_name: &str) -> Option<PathBuf> {
         }
     }
 
-    // 1. Check standard known paths on macOS (Homebrew, Cargo, Local)
+    // 1. Check user Application Support directory (~/Library/Application Support/SubMux/bin/...)
     let home = std::env::var("HOME").unwrap_or_default();
+    let app_support_paths = [
+        format!(
+            "{}/Library/Application Support/SubMux/bin/{}",
+            home, binary_name
+        ),
+        format!(
+            "{}/Library/Application Support/com.submux.desktop/bin/{}",
+            home, binary_name
+        ),
+    ];
+    for path_str in &app_support_paths {
+        let p = PathBuf::from(path_str);
+        if p.exists() && p.is_file() {
+            return Some(p);
+        }
+    }
+
+    // 2. Check standard known paths on macOS (Homebrew, Cargo, Local)
     let known_paths = [
         format!("/opt/homebrew/bin/{}", binary_name),
         format!("/usr/local/bin/{}", binary_name),
