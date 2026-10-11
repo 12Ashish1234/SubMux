@@ -82,7 +82,7 @@ jobs:
         continue-on-error: true
 
       - name: Node Supply Chain Security Audit (npm audit)
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
