@@ -99,17 +99,24 @@ pub fn build_mux_command(request: &MuxRequest) -> Vec<String> {
     args.push("-c".to_string());
     args.push("copy".to_string());
 
-    // 6. Container-specific subtitle codec mapping
+    // 6. Container-specific subtitle codec mapping for each newly added track.
+    // We deliberately avoid a global `-c:s` option because a global flag would force existing
+    // bitmap subtitle streams (e.g. Blu-ray PGS `hdmv_pgs_subtitle` or DVD `vobsub`) in input 0
+    // to attempt conversion to text, causing FFmpeg to fail with:
+    // "Subtitle encoding currently only possible from text to text or bitmap to bitmap".
     let container = get_container_format(request);
     let is_mp4 = matches!(container.as_str(), "mp4" | "m4v" | "mov");
-    if is_mp4 {
-        // MP4 container requires mov_text for timed text subtitles
-        args.push("-c:s".to_string());
-        args.push("mov_text".to_string());
-    } else {
-        // Matroska supports srt (SubRip) natively
-        args.push("-c:s".to_string());
-        args.push("srt".to_string());
+    for (idx, _track) in request.subtitle_tracks.iter().enumerate() {
+        let stream_idx = request.existing_subtitles_count + idx;
+        if is_mp4 {
+            // MP4 container requires mov_text for timed text subtitles
+            args.push(format!("-c:s:{}", stream_idx));
+            args.push("mov_text".to_string());
+        } else {
+            // Matroska supports srt (SubRip) natively
+            args.push(format!("-c:s:{}", stream_idx));
+            args.push("srt".to_string());
+        }
     }
 
     // Check if any of the new tracks is set to default
@@ -207,7 +214,7 @@ mod tests {
 
         assert!(args.contains(&"-c".to_string()));
         assert!(args.contains(&"copy".to_string()));
-        assert!(args.contains(&"-c:s".to_string()));
+        assert!(args.contains(&"-c:s:0".to_string()));
         assert!(args.contains(&"srt".to_string()));
 
         assert!(args.contains(&"-metadata:s:s:0".to_string()));
@@ -298,5 +305,32 @@ mod tests {
         assert!(args
             .windows(3)
             .any(|w| w[0] == "-itsoffset" && w[1] == "1.500" && w[2] == "-i"));
+    }
+
+    #[test]
+    fn test_mkv_with_existing_bitmap_subtitles_preserves_codecs() {
+        // Video with 3 existing subtitle streams (e.g. PGS, SRT, SRT)
+        let req = MuxRequest {
+            video_path: "The.Imitation.Game.mkv".to_string(),
+            subtitle_tracks: vec![SubtitleTrackConfig {
+                path: "new_sub.srt".to_string(),
+                language: "eng".to_string(),
+                title: "English Custom".to_string(),
+                is_default: false,
+                time_offset_secs: None,
+            }],
+            output_path: "The.Imitation.Game_subbed.mkv".to_string(),
+            output_format: Some("mkv".to_string()),
+            existing_subtitles_count: 3,
+        };
+
+        let args = build_mux_command(&req);
+
+        // Must NOT contain global "-c:s" flag which would force existing PGS to SRT
+        assert!(!args.contains(&"-c:s".to_string()));
+
+        // Must target only the new subtitle stream at index 3
+        assert!(args.contains(&"-c:s:3".to_string()));
+        assert!(args.contains(&"srt".to_string()));
     }
 }
